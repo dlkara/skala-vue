@@ -1,7 +1,7 @@
 <script setup>
 // 1일차 실습 과제
 // import WeatherMockup from '@/components/exercise/WeatherMockup.vue'
-import WeatherComponent from '@/components/exercise/WeatherComponent.vue'
+import WeatherComposition from '@/components/exercise/WeatherComposition.vue'
 </script>
 
 <template>
@@ -10,6 +10,6 @@ import WeatherComponent from '@/components/exercise/WeatherComponent.vue'
     <!-- <WeatherMockup /> -->
 
     <!-- 2일차 -->
-    <WeatherComponent />
+    <WeatherComposition />
   </div>
 </template>

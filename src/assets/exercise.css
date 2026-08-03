@@ -37,7 +37,9 @@
   color: #172033;
 }
 
-.light-mode .search-result {
+.light-mode .search-result,
+.light-mode .filter-result,
+.light-mode .result-count {
   color: #64748b;
 }
 
@@ -82,7 +84,9 @@
   color: #f8fafc;
 }
 
-.dark-mode .search-result {
+.dark-mode .search-result,
+.dark-mode .filter-result,
+.dark-mode .result-count {
   color: #cbd5e1;
 }
 
@@ -228,12 +232,64 @@
   color: #9ca3af;
 }
 
-.search-result {
-  margin: 8px 0 0;
+/* =========================
+   날씨 필터
+========================= */
+
+.filter-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.filter-box label {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.filter-box select {
+  min-width: 210px;
+  padding: 11px 38px 11px 13px;
+  border: 1px solid;
+  border-radius: 9px;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.light-mode .filter-box select {
+  border-color: #cbd5e1;
+  background-color: #ffffff;
+  color: #1f2937;
+}
+
+.dark-mode .filter-box select {
+  border-color: #4b5563;
+  background-color: #1f2937;
+  color: #f9fafb;
+}
+
+.filter-box select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
+}
+
+.search-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 14px;
+}
+
+.search-result,
+.filter-result,
+.result-count {
+  margin: 0;
 }
 
 /* =========================
-   즐겨찾기 토글 영역
+   즐겨찾기 영역
 ========================= */
 
 .favorite-section {
@@ -400,7 +456,7 @@
 }
 
 /* =========================
-   날씨 카드 목록
+   날씨 카드
 ========================= */
 
 .weather-grid {
@@ -427,12 +483,12 @@
 }
 
 .light-mode .weather-card:hover {
-  border-color: #bdee9b;
+  border-color: #93c5fd;
   box-shadow: 0 12px 28px rgb(15 23 42 / 12%);
 }
 
 .dark-mode .weather-card:hover {
-  border-color: #49c951;
+  border-color: #60a5fa;
   box-shadow: 0 14px 30px rgb(0 0 0 / 45%);
 }
 
@@ -455,8 +511,6 @@
   border-left: 7px solid #3b82f6;
 }
 
-/* 선택된 카드 */
-
 .light-mode .weather-card.selected {
   outline: 3px solid #22c55e;
   background-color: #f0fdf4;
@@ -467,8 +521,6 @@
   background-color: #163a2a;
 }
 
-/* 검색된 카드 */
-
 .light-mode .weather-card.searched {
   background-color: #eff6ff;
 }
@@ -476,8 +528,6 @@
 .dark-mode .weather-card.searched {
   background-color: #172554;
 }
-
-/* 선택과 검색이 동시에 적용된 카드 */
 
 .light-mode .weather-card.selected.searched {
   background-color: #ecfdf5;
@@ -488,7 +538,7 @@
 }
 
 /* =========================
-   날씨 안내 문구
+   날씨 안내
 ========================= */
 
 .weather-message {
@@ -566,7 +616,7 @@
 }
 
 /* =========================
-   선택 및 빈 상태 메시지
+   선택 및 빈 상태
 ========================= */
 
 .selected-message,
@@ -603,8 +653,6 @@
   box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
 }
 
-/* 상세 헤더 */
-
 .detail-header {
   display: flex;
   align-items: center;
@@ -629,9 +677,6 @@
   font: inherit;
   font-weight: 700;
   cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
 }
 
 .light-mode .detail-close-button {
@@ -652,8 +697,6 @@
   background-color: #4b5563;
 }
 
-/* 상세 정보와 지도 배치 */
-
 .detail-content {
   display: grid;
   grid-template-columns:
@@ -662,8 +705,6 @@
   align-items: stretch;
   gap: 24px;
 }
-
-/* 상세 정보 영역 */
 
 .detail-information {
   padding: 18px;
@@ -704,8 +745,6 @@
   flex-shrink: 0;
 }
 
-/* 상세 날씨 안내 */
-
 .detail-advice {
   margin-top: 18px;
   padding: 14px;
@@ -726,8 +765,6 @@
   margin: 8px 0 0;
   line-height: 1.6;
 }
-
-/* 지도 영역 */
 
 .map-container {
   width: 100%;
@@ -804,6 +841,20 @@
 
   .weather-section h3 {
     font-size: 21px;
+  }
+
+  .filter-box {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-box select {
+    width: 100%;
+  }
+
+  .search-status {
+    flex-direction: column;
+    gap: 6px;
   }
 
   .favorite-item {

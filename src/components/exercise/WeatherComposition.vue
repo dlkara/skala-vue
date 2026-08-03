@@ -142,6 +142,70 @@ const filteredWeatherList = computed(() => {
 })
 
 // =========================
+// 날씨 필터
+// =========================
+
+const filterOption = ref('all')
+
+const displayedWeatherList = computed(() => {
+  const list = filteredWeatherList.value
+
+  if (filterOption.value === 'hot') {
+    return list.filter((city) => city.temp >= 25)
+  }
+
+  if (filterOption.value === 'cool') {
+    return list.filter((city) => city.temp < 25)
+  }
+
+  if (filterOption.value === 'rain') {
+    return list.filter((city) => city.status === '비' || city.status === '소나기')
+  }
+
+  if (filterOption.value === 'sunny') {
+    return list.filter((city) => city.status === '맑음')
+  }
+
+  if (filterOption.value === 'windy') {
+    return list.filter((city) => city.status === '강풍' || city.wind >= 5)
+  }
+
+  if (filterOption.value === 'favorite') {
+    return list.filter((city) => city.favorite)
+  }
+
+  return list
+})
+
+const filterLabel = computed(() => {
+  if (filterOption.value === 'hot') {
+    return '더운 지역'
+  }
+
+  if (filterOption.value === 'cool') {
+    return '선선한 지역'
+  }
+
+  if (filterOption.value === 'rain') {
+    return '비 오는 지역'
+  }
+
+  if (filterOption.value === 'sunny') {
+    return '맑은 지역'
+  }
+
+  if (filterOption.value === 'windy') {
+    return '바람이 강한 지역'
+  }
+
+  if (filterOption.value === 'favorite') {
+    return '즐겨찾기한 지역'
+  }
+
+  return '전체 도시'
+})
+
+// =========================
 // 도시 선택 및 상세보기
 // =========================
 
@@ -233,25 +297,15 @@ const toggleTheme = () => {
 // 즐겨찾기
 // =========================
 
-const showFavorites = ref(false)
-
-const favoriteWeatherList = computed(() => {
-  return weatherList.value.filter((city) => city.favorite)
-})
-
 const toggleFavorite = (city) => {
   city.favorite = !city.favorite
-}
-
-const removeFavorite = (city) => {
-  city.favorite = false
 }
 </script>
 
 <template>
   <div class="weather-page" :class="theme === 'dark' ? 'dark-mode' : 'light-mode'">
     <div class="weather-container">
-      <!-- 제목 및 테마 버튼 -->
+      <!-- 제목 및 테마 -->
       <header class="page-header">
         <h2>🌤️ 과제 1: 날씨 (Composition API)</h2>
 
@@ -260,75 +314,65 @@ const removeFavorite = (city) => {
         </button>
       </header>
 
-      <!-- 도시 검색 -->
+      <!-- 검색 및 필터 -->
       <section class="weather-section">
-        <h3>🔍 도시 검색</h3>
+        <h3>🔍 도시 검색 및 필터</h3>
 
         <div class="search-box">
           <input
             :value="searchQuery"
             type="text"
-            placeholder="도시 이름 또는 초성 입력 (예: 대전, ㄷㅈ)"
+            placeholder="도시 이름 또는 초성 입력 (예: 부산, ㅂㅅ)"
             @input="handleSearchInput"
             @compositionupdate="handleSearchInput"
           />
         </div>
 
-        <p class="search-result">
-          검색 중인 도시:
-          {{ searchQuery.trim() || '없음' }}
-        </p>
-      </section>
+        <div class="filter-box">
+          <label for="weather-filter"> 날씨 필터 </label>
 
-      <!-- 즐겨찾기 -->
-      <section class="weather-section favorite-section">
-        <button
-          type="button"
-          class="favorite-toggle-button"
-          @click="showFavorites = !showFavorites"
-        >
-          {{
-            showFavorites
-              ? '⭐ 즐겨찾기 목록 닫기'
-              : `⭐ 즐겨찾기 목록 보기 (${favoriteWeatherList.length})`
-          }}
-        </button>
+          <select id="weather-filter" v-model="filterOption">
+            <option value="all">전체 도시</option>
 
-        <div v-if="showFavorites" class="favorite-content">
-          <p v-if="favoriteWeatherList.length === 0" class="favorite-empty">
-            아직 즐겨찾기한 도시가 없습니다.
+            <option value="hot">더운 지역</option>
+
+            <option value="cool">선선한 지역</option>
+
+            <option value="rain">비 오는 지역</option>
+
+            <option value="sunny">맑은 지역</option>
+
+            <option value="windy">바람이 강한 지역</option>
+
+            <option value="favorite">즐겨찾기한 지역</option>
+          </select>
+        </div>
+
+        <div class="search-status">
+          <p class="search-result">
+            검색 중인 도시:
+            {{ searchQuery.trim() || '없음' }}
           </p>
 
-          <div v-else class="favorite-list">
-            <div
-              v-for="city in favoriteWeatherList"
-              :key="`favorite-${city.id}`"
-              class="favorite-item"
-              @click="selectCity(city)"
-            >
-              <span class="favorite-city"> {{ city.icon }} {{ city.name }} </span>
+          <p class="filter-result">
+            현재 필터:
+            {{ filterLabel }}
+          </p>
 
-              <span class="favorite-weather"> {{ city.temp }}℃ · {{ city.status }} </span>
-
-              <button
-                type="button"
-                class="favorite-remove-button"
-                @click.stop="removeFavorite(city)"
-              >
-                즐겨찾기 해제
-              </button>
-            </div>
-          </div>
+          <p class="result-count">
+            검색 결과:
+            {{ displayedWeatherList.length }}개
+          </p>
         </div>
       </section>
 
-      <!-- 지역별 날씨 -->
+      <!-- 날씨 카드 목록 -->
       <section class="weather-section">
         <h3>🏙️ 지역별 날씨 현황</h3>
 
-        <div v-if="filteredWeatherList.length > 0" class="weather-grid">
+        <div v-if="displayedWeatherList.length > 0" class="weather-grid">
           <article
-            v-for="city in filteredWeatherList"
+            v-for="city in displayedWeatherList"
             :key="city.id"
             class="weather-card"
             :class="[
@@ -350,7 +394,9 @@ const removeFavorite = (city) => {
             </h4>
 
             <p>현재 기온: {{ city.temp }}℃</p>
+
             <p>습도: {{ city.humidity }}%</p>
+
             <p>풍속: {{ city.wind }}m/s</p>
 
             <p v-if="city.temp >= 25">🔥 더움 (25℃ 이상)</p>
@@ -358,19 +404,9 @@ const removeFavorite = (city) => {
             <p v-else>❄️ 선선함 (25℃ 미만)</p>
 
             <div class="weather-message">
-              <p v-if="city.status === '비' || city.status === '소나기'">
-                우산을 챙기고 미끄러운 길을 조심하세요.
+              <p>
+                {{ getWeatherAdvice(city) }}
               </p>
-
-              <p v-else-if="city.status === '폭염'">야외 활동을 줄이고 수분을 충분히 섭취하세요.</p>
-
-              <p v-else-if="city.status === '강풍'">강한 바람에 날릴 수 있는 물건을 주의하세요.</p>
-
-              <p v-else-if="city.status === '맑음' && city.temp >= 25">
-                자외선 차단제를 준비하고 수분을 섭취하세요.
-              </p>
-
-              <p v-else>가벼운 외출이나 산책을 하기 좋은 날씨입니다.</p>
             </div>
 
             <p
@@ -396,7 +432,13 @@ const removeFavorite = (city) => {
           </article>
         </div>
 
-        <p v-else class="empty-message">검색 결과와 일치하는 도시가 없습니다.</p>
+        <p v-else class="empty-message">
+          {{
+            filterOption === 'favorite'
+              ? '즐겨찾기한 도시가 없습니다.'
+              : '검색 또는 필터 조건과 일치하는 도시가 없습니다.'
+          }}
+        </p>
       </section>
 
       <!-- 상세 정보 및 지도 -->
@@ -414,26 +456,29 @@ const removeFavorite = (city) => {
           <div class="detail-information">
             <p>
               <strong>날씨 상태</strong>
-              <span>{{ selectedCityDetail.status }}</span>
+              <span>
+                {{ selectedCityDetail.status }}
+              </span>
             </p>
 
             <p>
               <strong>현재 기온</strong>
-              <span>{{ selectedCityDetail.temp }}℃</span>
+              <span> {{ selectedCityDetail.temp }}℃ </span>
             </p>
 
             <p>
               <strong>습도</strong>
-              <span>{{ selectedCityDetail.humidity }}%</span>
+              <span> {{ selectedCityDetail.humidity }}% </span>
             </p>
 
             <p>
               <strong>풍속</strong>
-              <span>{{ selectedCityDetail.wind }}m/s</span>
+              <span> {{ selectedCityDetail.wind }}m/s </span>
             </p>
 
             <p>
               <strong>체감 상태</strong>
+
               <span>
                 {{ selectedCityDetail.temp >= 25 ? '더운 날씨' : '선선한 날씨' }}
               </span>
@@ -441,6 +486,7 @@ const removeFavorite = (city) => {
 
             <p>
               <strong>즐겨찾기</strong>
+
               <span>
                 {{ selectedCityDetail.favorite ? '등록됨' : '등록되지 않음' }}
               </span>
