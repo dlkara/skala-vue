@@ -145,6 +145,18 @@ const filteredWeatherList = computed(() => {
 // 날씨 필터
 // =========================
 
+const filterOption = ref('all')
+
+const filterLabels = {
+  all: '전체 도시',
+  hot: '더운 지역',
+  cool: '선선한 지역',
+  rain: '비 오는 지역',
+  sunny: '맑은 지역',
+  windy: '바람이 강한 지역',
+  favorite: '즐겨찾기한 지역',
+}
+
 const displayedWeatherList = computed(() => {
   const list = filteredWeatherList.value
 
@@ -175,17 +187,10 @@ const displayedWeatherList = computed(() => {
   return list
 })
 
-const filterOption = ref('all')
-
-const filterLabels = {
-  all: '전체 도시',
-  hot: '더운 지역',
-  cool: '선선한 지역',
-  rain: '비 오는 지역',
-  sunny: '맑은 지역',
-  windy: '바람이 강한 지역',
-  favorite: '즐겨찾기한 지역',
-}
+// filter(): 배열에서 조건이 true인 항목만 모아 새 배열을 만드는 함수
+//            배열의 각 요소를 조건식으로 검사하고,
+//            조건을 만족하는 요소만 새 배열로 반환합니다.
+//            검색어와 날씨 조건에 맞는 도시 카드만 표시하기 위해 사용했습니다.
 
 const filterLabel = computed(() => {
   return filterLabels[filterOption.value]
@@ -275,7 +280,7 @@ watch(filterOption, (newValue, oldValue) => {
 
 watchEffect(() => {
   console.log(
-    `[watchEffect 자동 호출] 현재 검색어 "${searchQuery.value}"에 매칭되는 API 데이터를 필터링합니다.`,
+    `[watchEffect 자동 호출] 현재 검색어 "${searchQuery.value}"를 기준으로 날씨 목록을 필터링합니다.`,
   )
 })
 

@@ -1,0 +1,51 @@
+<script setup>
+import reactiveRef from './components/practices/composition/reactiveRef.vue'
+import reactiveReactive from './components/practices/composition/reactiveReactive.vue'
+
+import ComputedBasic from './components/practices/composition/ComputedBasic.vue'
+import WatchersBasic from './components/practices/composition/WatchersBasic.vue'
+import WatchersMulti from './components/practices/composition/WatchersMulti.vue'
+import WatchersDeep from './components/practices/composition/WatchersDeep.vue'
+import WatchersReactive from './components/practices/composition/WatchersReactive.vue'
+import WatchersEffect from './components/practices/composition/WatchersEffect.vue'
+
+import LifecycleParent from './components/practices/component/LifecycleParent.vue'
+
+import PropsEmitsParent from './components/practices/component/PropsEmitsParent.vue'
+
+import SlotDefaultParent from './components/practices/component/SlotDefaultParent.vue'
+import SlotNamedParent from './components/practices/component/SlotNamedParent.vue'
+import SlotScopedParent from './components/practices/component/SlotScopedParent.vue'
+</script>
+
+<template>
+  <div style="padding: 20px">
+    <h1>1. Reactive State</h1>
+    <hr />
+    <reactiveRef />
+    <reactiveReactive />
+
+    <h1>2. Computed & Watchers</h1>
+    <hr />
+    <ComputedBasic />
+    <WatchersBasic />
+    <WatchersMulti />
+    <WatchersDeep />
+    <WatchersReactive />
+    <WatchersEffect />
+
+    <h1>3. Component Lifecycle</h1>
+    <hr />
+    <LifecycleParent />
+
+    <h1>4. Props & Emits</h1>
+    <hr />
+    <PropsEmitsParent />
+
+    <h1>5. Component Slot</h1>
+    <hr />
+    <SlotDefaultParent />
+    <SlotNamedParent />
+    <SlotScopedParent />
+  </div>
+</template>
