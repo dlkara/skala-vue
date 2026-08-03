@@ -101,7 +101,7 @@ const getWeatherAdvice = () => {
 .weather-card {
   min-width: 0;
   padding: 24px;
-  border: 1px solid;
+  border: 1px solid #dbe3ee;
   border-radius: 16px;
   background-color: #ffffff;
   color: #1f2937;
@@ -120,32 +120,19 @@ const getWeatherAdvice = () => {
   box-shadow: 0 12px 28px rgb(15 23 42 / 12%);
 }
 
-:global(.dark-mode) .weather-card {
-  border-color: #374151;
-  background-color: #1f2937;
-  color: #f3f4f6;
-  box-shadow: 0 8px 22px rgb(0 0 0 / 35%);
-}
-
-:global(.dark-mode) .weather-card:hover {
-  border-color: #60a5fa;
-  box-shadow: 0 14px 30px rgb(0 0 0 / 45%);
-}
-
 .weather-card h4 {
   margin: 0 0 16px;
+  color: #172033;
   font-size: 22px;
   line-height: 1.4;
-}
-
-:global(.dark-mode) .weather-card h4 {
-  color: #f8fafc;
 }
 
 .weather-card p {
   margin: 9px 0;
   line-height: 1.55;
 }
+
+/* 기온에 따른 카드 구분 */
 
 .weather-card.hot {
   border-left: 7px solid #ef4444;
@@ -162,30 +149,17 @@ const getWeatherAdvice = () => {
   background-color: #f0fdf4;
 }
 
-:global(.dark-mode) .weather-card.selected {
-  outline-color: #4ade80;
-  background-color: #163a2a;
-}
-
-/* 검색된 카드 */
+/* 검색 결과 카드 */
 
 .weather-card.searched {
   background-color: #eff6ff;
-}
-
-:global(.dark-mode) .weather-card.searched {
-  background-color: #172554;
 }
 
 .weather-card.selected.searched {
   background-color: #ecfdf5;
 }
 
-:global(.dark-mode) .weather-card.selected.searched {
-  background-color: #153b32;
-}
-
-/* 안내 문구 */
+/* 날씨 안내 문구 */
 
 .weather-message {
   min-height: 82px;
@@ -200,18 +174,9 @@ const getWeatherAdvice = () => {
   margin: 0;
 }
 
-:global(.dark-mode) .weather-message {
-  background-color: #111827;
-  color: #d1d5db;
-}
-
 .searched-message {
   color: #1d4ed8;
   font-weight: 700;
-}
-
-:global(.dark-mode) .searched-message {
-  color: #93c5fd;
 }
 
 /* 버튼 */
@@ -229,6 +194,7 @@ const getWeatherAdvice = () => {
   padding: 9px 12px;
   border-radius: 8px;
   font: inherit;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -242,11 +208,6 @@ const getWeatherAdvice = () => {
   background-color: #1e293b;
 }
 
-:global(.dark-mode) .detail-button {
-  border-color: #60a5fa;
-  background-color: #2563eb;
-}
-
 .favorite-button {
   border: 1px solid #fde68a;
   background-color: #fef3c7;
@@ -255,12 +216,6 @@ const getWeatherAdvice = () => {
 
 .favorite-button:hover {
   background-color: #fde68a;
-}
-
-:global(.dark-mode) .favorite-button {
-  border-color: #facc15;
-  background-color: #713f12;
-  color: #fef9c3;
 }
 
 @media (max-width: 600px) {

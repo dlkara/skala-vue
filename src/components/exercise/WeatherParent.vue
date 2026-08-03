@@ -219,7 +219,7 @@ const closeDetail = () => {
 
 // =========================
 // 즐겨찾기
-// 자식은 이벤트만 보내고 부모가 실제 데이터 변경
+// 실제 데이터 변경은 부모가 담당
 // =========================
 
 const toggleFavorite = (city) => {
@@ -227,7 +227,7 @@ const toggleFavorite = (city) => {
 }
 
 // =========================
-// 검색 카드 표시 여부
+// 검색 결과 카드 표시 여부
 // =========================
 
 const isSearchedCity = (city) => {
@@ -269,27 +269,13 @@ const getWeatherAdvice = (city) => {
 }
 
 // =========================
-// 지도
+// 지도 주소
 // =========================
 
 const getMapUrl = (cityName) => {
   const address = encodeURIComponent(`${cityName} 대한민국`)
 
   return `https://www.google.com/maps?q=${address}&output=embed`
-}
-
-// =========================
-// 테마
-// =========================
-
-const theme = ref('light')
-
-const toggleTheme = () => {
-  if (theme.value === 'light') {
-    theme.value = 'dark'
-  } else {
-    theme.value = 'light'
-  }
 }
 
 // =========================
@@ -318,34 +304,28 @@ watch(filterOption, (newValue, oldValue) => {
 
 watchEffect(() => {
   console.log(
-    `[watchEffect 자동 호출] 검색어 "${searchQuery.value}"를 기준으로 날씨 목록을 확인합니다.`,
+    `[watchEffect 자동 호출] 현재 검색어 "${searchQuery.value}"에 해당하는 도시는 ${filteredWeatherList.value.length}개입니다.`,
   )
 })
 </script>
 
 <template>
-  <div class="weather-page" :class="theme === 'dark' ? 'dark-mode' : 'light-mode'">
+  <div class="weather-page">
     <div class="weather-container">
-      <!-- 제목과 테마 -->
+      <!-- 페이지 제목 -->
       <header class="page-header">
         <h2>🌤️ 과제 3: 날씨 (컴포넌트)</h2>
-
-        <button type="button" class="theme-button" @click="toggleTheme">
-          {{ theme === 'light' ? '🌙 다크 모드' : '☀️ 라이트 모드' }}
-        </button>
       </header>
 
-      <!-- 검색과 필터 -->
+      <!-- 검색 및 필터 영역 -->
       <BaseDashboardCard title="🔍 도시 검색 및 필터">
         <SearchBar :search-query="searchQuery" @update-query="updateSearchQuery" />
 
         <div class="filter-panel">
           <div class="filter-header">
-            <div>
-              <p class="filter-title">날씨 필터</p>
+            <p class="filter-title">날씨 필터</p>
 
-              <p class="filter-description">원하는 날씨 조건을 선택하세요.</p>
-            </div>
+            <p class="filter-description">원하는 날씨 조건을 선택하세요.</p>
           </div>
 
           <div class="filter-control">
@@ -368,7 +348,7 @@ watchEffect(() => {
         </div>
       </BaseDashboardCard>
 
-      <!-- 날씨 목록 -->
+      <!-- 날씨 카드 목록 -->
       <BaseDashboardCard title="🏙️ 지역별 날씨 현황">
         <div v-if="displayedWeatherList.length > 0" class="weather-grid">
           <WeatherCard
@@ -392,7 +372,7 @@ watchEffect(() => {
         </p>
       </BaseDashboardCard>
 
-      <!-- 상세 날씨와 지도 -->
+      <!-- 상세 날씨 -->
       <section v-if="selectedCityDetail" class="weather-detail">
         <div class="detail-header">
           <h3>
@@ -486,9 +466,8 @@ watchEffect(() => {
   min-height: 100vh;
   padding: 40px clamp(24px, 5vw, 80px) 64px;
   box-sizing: border-box;
-  transition:
-    background-color 0.25s ease,
-    color 0.25s ease;
+  background-color: #f5f7fb;
+  color: #1f2937;
 }
 
 .weather-page *,
@@ -504,92 +483,19 @@ watchEffect(() => {
 }
 
 /* =========================
-   라이트 모드
-========================= */
-
-.weather-page.light-mode {
-  background-color: #f5f7fb;
-  color: #1f2937;
-}
-
-.light-mode h2,
-.light-mode h3 {
-  color: #172033;
-}
-
-/* =========================
-   다크 모드
-========================= */
-
-.weather-page.dark-mode {
-  background-color: #0f172a;
-  color: #e5e7eb;
-}
-
-.dark-mode h2,
-.dark-mode h3 {
-  color: #f8fafc;
-}
-
-/* =========================
    상단 헤더
 ========================= */
 
 .page-header {
-  display: flex;
-  align-items: center;
   width: 100%;
-  gap: 20px;
   margin-bottom: 34px;
 }
 
 .page-header h2 {
-  min-width: 0;
   margin: 0;
+  color: #172033;
   font-size: clamp(26px, 3vw, 36px);
   line-height: 1.3;
-}
-
-.theme-button {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding: 10px 16px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease;
-}
-
-.theme-button:hover {
-  transform: translateY(-1px);
-}
-
-.light-mode .theme-button {
-  border-color: #cbd5e1;
-  background-color: #172033;
-  color: #ffffff;
-}
-
-.light-mode .theme-button:hover {
-  background-color: #334155;
-}
-
-.dark-mode .theme-button {
-  border-color: #64748b;
-  background-color: #f8fafc;
-  color: #172033;
-}
-
-.dark-mode .theme-button:hover {
-  background-color: #e2e8f0;
 }
 
 /* =========================
@@ -602,10 +508,6 @@ watchEffect(() => {
   border: 1px solid #dbe3ee;
   border-radius: 14px;
   background-color: #f8fafc;
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease,
-    color 0.25s ease;
 }
 
 .filter-header {
@@ -643,9 +545,7 @@ watchEffect(() => {
   cursor: pointer;
   outline: none;
   transition:
-    background-color 0.2s ease,
     border-color 0.2s ease,
-    color 0.2s ease,
     box-shadow 0.2s ease;
 }
 
@@ -658,36 +558,8 @@ watchEffect(() => {
   box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
 }
 
-.dark-mode .filter-panel {
-  border-color: #334155;
-  background-color: #111827;
-}
-
-.dark-mode .filter-title {
-  color: #f8fafc;
-}
-
-.dark-mode .filter-description {
-  color: #94a3b8;
-}
-
-.dark-mode .filter-control select {
-  border-color: #475569;
-  background-color: #1e293b;
-  color: #f8fafc;
-}
-
-.dark-mode .filter-control select:hover {
-  border-color: #64748b;
-}
-
-.dark-mode .filter-control select:focus {
-  border-color: #60a5fa;
-  box-shadow: 0 0 0 3px rgb(96 165 250 / 22%);
-}
-
 /* =========================
-   카드 목록
+   날씨 카드 목록
 ========================= */
 
 .weather-grid {
@@ -707,9 +579,6 @@ watchEffect(() => {
   border-radius: 10px;
   font-weight: 700;
   text-align: center;
-  transition:
-    background-color 0.25s ease,
-    color 0.25s ease;
 }
 
 .bottom-message,
@@ -717,24 +586,14 @@ watchEffect(() => {
   margin-top: 28px;
 }
 
-.light-mode .empty-message {
+.empty-message {
   background-color: #e2e8f0;
   color: #475569;
 }
 
-.dark-mode .empty-message {
-  background-color: #1e293b;
-  color: #cbd5e1;
-}
-
-.light-mode .selected-message {
+.selected-message {
   background-color: #dcfce7;
   color: #166534;
-}
-
-.dark-mode .selected-message {
-  background-color: #14532d;
-  color: #dcfce7;
 }
 
 /* =========================
@@ -744,26 +603,11 @@ watchEffect(() => {
 .weather-detail {
   margin-top: 32px;
   padding: 24px;
-  border: 1px solid;
+  border: 1px solid #dbe3ee;
   border-radius: 16px;
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease,
-    color 0.25s ease;
-}
-
-.light-mode .weather-detail {
-  border-color: #dbe3ee;
   background-color: #ffffff;
   color: #1f2937;
   box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
-}
-
-.dark-mode .weather-detail {
-  border-color: #334155;
-  background-color: #172033;
-  color: #e5e7eb;
-  box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
 }
 
 .detail-header {
@@ -776,6 +620,7 @@ watchEffect(() => {
 .detail-header h3 {
   min-width: 0;
   margin: 0;
+  color: #172033;
   font-size: 24px;
   line-height: 1.4;
 }
@@ -786,30 +631,15 @@ watchEffect(() => {
   padding: 8px 14px;
   border: 0;
   border-radius: 8px;
+  background-color: #e2e8f0;
+  color: #334155;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
 }
 
-.light-mode .detail-close-button {
-  background-color: #e2e8f0;
-  color: #334155;
-}
-
-.light-mode .detail-close-button:hover {
+.detail-close-button:hover {
   background-color: #cbd5e1;
-}
-
-.dark-mode .detail-close-button {
-  background-color: #334155;
-  color: #f8fafc;
-}
-
-.dark-mode .detail-close-button:hover {
-  background-color: #475569;
 }
 
 .detail-content {
@@ -824,17 +654,7 @@ watchEffect(() => {
 .detail-information {
   padding: 18px;
   border-radius: 12px;
-  transition:
-    background-color 0.25s ease,
-    color 0.25s ease;
-}
-
-.light-mode .detail-information {
   background-color: #f8fafc;
-}
-
-.dark-mode .detail-information {
-  background-color: #111827;
 }
 
 .detail-information > p {
@@ -844,19 +664,11 @@ watchEffect(() => {
   gap: 16px;
   margin: 0;
   padding: 11px 0;
-  border-bottom: 1px solid;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .detail-information > p:last-of-type {
   border-bottom: 0;
-}
-
-.light-mode .detail-information > p {
-  border-color: #e2e8f0;
-}
-
-.dark-mode .detail-information > p {
-  border-color: #334155;
 }
 
 .detail-information strong {
@@ -867,24 +679,13 @@ watchEffect(() => {
   margin-top: 18px;
   padding: 14px;
   border-radius: 10px;
-  transition:
-    background-color 0.25s ease,
-    color 0.25s ease;
+  background-color: #eff6ff;
+  color: #1e3a8a;
 }
 
 .detail-advice p {
   margin: 8px 0 0;
   line-height: 1.6;
-}
-
-.light-mode .detail-advice {
-  background-color: #eff6ff;
-  color: #1e3a8a;
-}
-
-.dark-mode .detail-advice {
-  background-color: #172554;
-  color: #dbeafe;
 }
 
 /* =========================
@@ -895,21 +696,9 @@ watchEffect(() => {
   width: 100%;
   min-height: 360px;
   overflow: hidden;
-  border: 1px solid;
+  border: 1px solid #dbe3ee;
   border-radius: 12px;
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease;
-}
-
-.light-mode .map-container {
-  border-color: #dbe3ee;
   background-color: #e2e8f0;
-}
-
-.dark-mode .map-container {
-  border-color: #475569;
-  background-color: #111827;
 }
 
 .map-container iframe {
@@ -953,17 +742,11 @@ watchEffect(() => {
   }
 
   .page-header {
-    gap: 10px;
     margin-bottom: 28px;
   }
 
   .page-header h2 {
     font-size: 22px;
-  }
-
-  .theme-button {
-    padding: 8px 11px;
-    font-size: 13px;
   }
 
   .filter-panel {

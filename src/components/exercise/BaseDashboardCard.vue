@@ -26,11 +26,8 @@ defineProps({
   border: 1px solid #d6deea;
   border-radius: 18px;
   background-color: #ffffff;
+  color: #1f2937;
   box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease,
-    color 0.25s ease;
 }
 
 .dashboard-title {
@@ -44,23 +41,6 @@ defineProps({
 
 .dashboard-content {
   width: 100%;
-}
-
-/*
-  dark-mode 클래스는 WeatherParent에 있으므로
-  부모 클래스 참조를 위해 :global() 사용
-*/
-
-:global(.dark-mode) .dashboard-card {
-  border-color: #334155;
-  background-color: #172033;
-  color: #e5e7eb;
-  box-shadow: 0 10px 28px rgb(0 0 0 / 32%);
-}
-
-:global(.dark-mode) .dashboard-title {
-  border-bottom-color: #334155;
-  color: #f8fafc;
 }
 
 @media (max-width: 600px) {

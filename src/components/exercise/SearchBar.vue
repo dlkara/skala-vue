@@ -37,9 +37,6 @@ const handleInput = (event) => {
   border: 1px solid #dbe3ee;
   border-radius: 12px;
   background-color: #f8fafc;
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease;
 }
 
 .search-area {
@@ -62,10 +59,9 @@ const handleInput = (event) => {
   color: #111827;
   font: inherit;
   outline: none;
+  box-sizing: border-box;
   transition:
     border-color 0.2s ease,
-    background-color 0.2s ease,
-    color 0.2s ease,
     box-shadow 0.2s ease;
 }
 
@@ -76,24 +72,5 @@ const handleInput = (event) => {
 .search-input:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
-}
-
-:global(.dark-mode) .search-panel {
-  border-color: #334155;
-  background-color: #0f172a;
-}
-
-:global(.dark-mode) .search-label {
-  color: #e2e8f0;
-}
-
-:global(.dark-mode) .search-input {
-  border-color: #475569;
-  background-color: #1e293b;
-  color: #f8fafc;
-}
-
-:global(.dark-mode) .search-input::placeholder {
-  color: #94a3b8;
 }
 </style>
