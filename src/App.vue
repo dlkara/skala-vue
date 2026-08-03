@@ -1,15 +1,23 @@
 <script setup>
-// 1일차 실습 과제
+// 과제 1
 // import WeatherMockup from '@/components/exercise/WeatherMockup.vue'
-import WeatherComposition from '@/components/exercise/WeatherComposition.vue'
+
+// 과제 2
+// import WeatherComposition from '@/components/exercise/WeatherComposition.vue'
+
+// 과제 3
+import WeatherParent from '@/components/exercise/WeatherParent.vue'
 </script>
 
 <template>
   <div>
-    <!-- 1일차 -->
+    <!-- 과제 1 -->
     <!-- <WeatherMockup /> -->
 
-    <!-- 2일차 -->
-    <WeatherComposition />
+    <!-- 과제 2 -->
+    <!-- <WeatherComposition /> -->
+
+    <!-- 과제 3 -->
+    <WeatherParent />
   </div>
 </template>
