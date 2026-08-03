@@ -145,8 +145,6 @@ const filteredWeatherList = computed(() => {
 // 날씨 필터
 // =========================
 
-const filterOption = ref('all')
-
 const displayedWeatherList = computed(() => {
   const list = filteredWeatherList.value
 
@@ -177,32 +175,20 @@ const displayedWeatherList = computed(() => {
   return list
 })
 
+const filterOption = ref('all')
+
+const filterLabels = {
+  all: '전체 도시',
+  hot: '더운 지역',
+  cool: '선선한 지역',
+  rain: '비 오는 지역',
+  sunny: '맑은 지역',
+  windy: '바람이 강한 지역',
+  favorite: '즐겨찾기한 지역',
+}
+
 const filterLabel = computed(() => {
-  if (filterOption.value === 'hot') {
-    return '더운 지역'
-  }
-
-  if (filterOption.value === 'cool') {
-    return '선선한 지역'
-  }
-
-  if (filterOption.value === 'rain') {
-    return '비 오는 지역'
-  }
-
-  if (filterOption.value === 'sunny') {
-    return '맑은 지역'
-  }
-
-  if (filterOption.value === 'windy') {
-    return '바람이 강한 지역'
-  }
-
-  if (filterOption.value === 'favorite') {
-    return '즐겨찾기한 지역'
-  }
-
-  return '전체 도시'
+  return filterLabels[filterOption.value]
 })
 
 // =========================
@@ -273,6 +259,16 @@ watch(selectedCityInfo, (newValue, oldValue) => {
   )
 })
 
+watch(filterOption, (newValue, oldValue) => {
+  console.log(
+    `[watch 감지] 날씨 필터가 "${filterLabels[oldValue]}"에서 "${filterLabels[newValue]}"로 변경되었습니다.`,
+  )
+
+  console.log(
+    `[필터 결과] "${filterLabels[newValue]}" 조건에 맞는 도시는 ${displayedWeatherList.value.length}개입니다.`,
+  )
+})
+
 // =========================
 // watchEffect
 // =========================
@@ -307,7 +303,7 @@ const toggleFavorite = (city) => {
     <div class="weather-container">
       <!-- 제목 및 테마 -->
       <header class="page-header">
-        <h2>🌤️ 과제 1: 날씨 (Composition API)</h2>
+        <h2>🌤️ 과제 2: 날씨 (컴포지션)</h2>
 
         <button type="button" class="theme-button" @click="toggleTheme">
           {{ theme === 'light' ? '🌙 다크 모드' : '☀️ 라이트 모드' }}
@@ -322,7 +318,7 @@ const toggleFavorite = (city) => {
           <input
             :value="searchQuery"
             type="text"
-            placeholder="도시 이름 또는 초성 입력 (예: 부산, ㅂㅅ)"
+            placeholder="도시 이름 또는 초성 입력 (예: 대전, ㄷㅈ)"
             @input="handleSearchInput"
             @compositionupdate="handleSearchInput"
           />
