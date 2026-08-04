@@ -3,11 +3,11 @@
 <template>
   <div class="not-found-page">
     <section class="not-found-card">
-      <p class="error-code">404</p>
+      <p class="error-code">???</p>
 
       <h1>페이지를 찾을 수 없습니다.</h1>
 
-      <p>요청한 주소가 존재하지 않거나 이동되었을 수 있습니다.</p>
+      <p>요청한 주소가 존재하지 않거나 아직 개발되지 않았습니다.</p>
 
       <RouterLink to="/" class="home-link"> 날씨 홈으로 이동 </RouterLink>
     </section>
