@@ -1,19 +1,36 @@
 <script setup>
 import { computed } from 'vue'
 
+import { useTemperature } from '@/composables/useTemperature'
+
+import { useConfigStore } from '@/stores/configStore'
+
 import { getWeatherIconUrl } from '@/utils/getWeatherIconUrl'
 
+// ========================================
+// Props / Emits
+// ========================================
+
 const props = defineProps({
+  /**
+   * 화면용으로 정규화된 도시 날씨 객체입니다.
+   */
   city: {
     type: Object,
     required: true,
   },
 
+  /**
+   * 현재 선택된 카드인지 나타냅니다.
+   */
   selected: {
     type: Boolean,
     default: false,
   },
 
+  /**
+   * 검색어와 일치한 카드인지 나타냅니다.
+   */
   searched: {
     type: Boolean,
     default: false,
@@ -22,24 +39,69 @@ const props = defineProps({
 
 const emit = defineEmits(['select-card', 'click-detail', 'toggle-favorite'])
 
+// ========================================
+// Store
+// ========================================
+
+/**
+ * 현재 온도 단위 이름을
+ * 스크린리더 안내에 사용합니다.
+ */
+const configStore = useConfigStore()
+
+// ========================================
+// 카드 정보
+// ========================================
+
+/**
+ * article과 도시 제목을 연결할 고유 ID입니다.
+ */
 const cityTitleId = computed(() => {
   return `city-title-${props.city.id}`
 })
 
 /**
- * OpenWeatherMap 공식 아이콘 주소입니다.
+ * OpenWeatherMap 공식 아이콘 URL입니다.
  */
 const weatherIconUrl = computed(() => {
   return getWeatherIconUrl(props.city.weather.icon, '2x')
 })
 
+// ========================================
+// 온도 단위 변환
+// ========================================
+
 /**
- * 기온 상태를 색상뿐 아니라 텍스트로 표시합니다.
+ * 현재 도시의 섭씨 원본 온도입니다.
+ *
+ * computed로 전달하므로 도시 데이터가 변경되더라도
+ * useTemperature에서 최신 값을 사용합니다.
+ */
+const rawTemperature = computed(() => {
+  return props.city.main.temp
+})
+
+/**
+ * configStore의 온도 단위가 변경되면
+ * 아래 값도 자동으로 다시 계산됩니다.
+ */
+const { displayTemperature, formattedTemperature } = useTemperature(rawTemperature)
+
+// ========================================
+// 기온 상태
+// ========================================
+
+/**
+ * 더운 날씨·선선한 날씨·쌀쌀한 날씨 판단은
+ * 단위와 무관하도록 섭씨 원본으로 계산합니다.
+ *
+ * 화씨 표시값으로 판단하면 기준이 달라지기 때문에
+ * 반드시 원본 섭씨를 사용합니다.
  */
 const temperatureStatus = computed(() => {
   const temperature = props.city.main.temp
 
-  if (temperature === null) {
+  if (temperature === null || temperature === undefined) {
     return '기온 정보 없음'
   }
 
@@ -53,6 +115,10 @@ const temperatureStatus = computed(() => {
 
   return '선선한 날씨'
 })
+
+// ========================================
+// 이벤트 처리
+// ========================================
 
 const handleSelect = () => {
   emit('select-card', props.city)
@@ -76,6 +142,9 @@ const handleFavorite = () => {
     }"
     :aria-labelledby="cityTitleId"
   >
+    <!-- ========================================
+         도시명과 즐겨찾기
+    ========================================= -->
     <header class="card-header">
       <div class="city-information">
         <div class="city-heading">
@@ -113,9 +182,12 @@ const handleFavorite = () => {
       </button>
     </header>
 
+    <!-- ========================================
+         현재 날씨
+    ========================================= -->
     <div class="weather-main">
       <!--
-        바로 옆에 날씨 설명이 있으므로
+        날씨 설명이 옆에 별도로 있으므로
         아이콘은 장식 이미지로 처리합니다.
       -->
       <img
@@ -130,16 +202,21 @@ const handleFavorite = () => {
 
       <div class="weather-summary">
         <p class="temperature">
-          <template v-if="city.main.temp !== null">
-            <span aria-hidden="true"> {{ city.main.temp }}℃ </span>
+          <!--
+            화면에는 현재 설정된 단위의 온도를 표시합니다.
+            단위 변경 시 이 값이 자동으로 갱신됩니다.
+          -->
+          <span aria-hidden="true">
+            {{ formattedTemperature }}
+          </span>
 
-            <span class="sr-only">
-              현재 기온 섭씨
-              {{ city.main.temp }}도
-            </span>
-          </template>
+          <span v-if="displayTemperature !== null" class="sr-only">
+            현재 기온
+            {{ configStore.unitLabel }}
+            {{ displayTemperature }}도
+          </span>
 
-          <span v-else> 기온 정보 없음 </span>
+          <span v-else class="sr-only"> 현재 기온 정보 없음 </span>
         </p>
 
         <p class="weather-status">
@@ -150,19 +227,23 @@ const handleFavorite = () => {
 
     <!--
       최저·최고 기온, 습도, 풍속은
-      상세 페이지에서만 제공합니다.
+      상세 날씨 페이지에서만 제공합니다.
     -->
 
     <span
       class="temperature-badge"
       :class="{
-        hot: city.main.temp >= 30,
+        hot: city.main.temp !== null && city.main.temp >= 30,
+
         cold: city.main.temp !== null && city.main.temp <= 10,
       }"
     >
       {{ temperatureStatus }}
     </span>
 
+    <!-- ========================================
+         카드 동작 버튼
+    ========================================= -->
     <footer class="card-actions">
       <button type="button" class="select-button" :aria-pressed="selected" @click="handleSelect">
         {{ selected ? '선택된 도시' : `${city.name} 선택` }}
@@ -181,6 +262,10 @@ const handleFavorite = () => {
 </template>
 
 <style scoped>
+/* ========================================
+   카드 전체
+======================================== */
+
 .weather-card {
   display: flex;
   flex-direction: column;
@@ -201,10 +286,6 @@ const handleFavorite = () => {
     box-shadow 0.2s ease;
 }
 
-/*
-  카드를 위로 움직이지 않습니다.
-  따라서 위아래 카드와 겹쳐 보이지 않습니다.
-*/
 .weather-card:hover {
   border-color: #bfdbfe;
 
@@ -369,6 +450,10 @@ const handleFavorite = () => {
   font-weight: 800;
 }
 
+/* ========================================
+   기온 상태
+======================================== */
+
 .temperature-badge {
   align-self: flex-start;
 
@@ -395,7 +480,7 @@ const handleFavorite = () => {
 }
 
 /* ========================================
-   카드 버튼
+   하단 버튼
 ======================================== */
 
 .card-actions {
@@ -449,6 +534,10 @@ const handleFavorite = () => {
 .detail-button:hover {
   background-color: #1d4ed8;
 }
+
+/* ========================================
+   모바일
+======================================== */
 
 @media (max-width: 480px) {
   .card-header {

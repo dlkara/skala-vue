@@ -7,9 +7,10 @@ import App from './App.vue'
 import router from './router'
 
 const app = createApp(App)
+const pinia = createPinia()
 
 // mount 전에 플러그인 등록
-app.use(createPinia())
+app.use(pinia)
 app.use(router)
 
 app.mount('#app')

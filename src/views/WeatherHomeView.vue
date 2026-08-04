@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch, watchEffect } from 'vue'
 
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 
 import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
@@ -9,7 +10,7 @@ import WeatherCard from '@/components/exercise/WeatherCard.vue'
 
 import { regionLabels } from '@/data/weatherData'
 
-import { toggleFavorite, weatherList } from '@/state/weatherState'
+import { useWeatherStore } from '@/stores/weatherStore'
 
 import { getChosung } from '@/utils/getChosung'
 
@@ -23,11 +24,30 @@ import { getChosung } from '@/utils/getChosung'
 const router = useRouter()
 
 // ========================================
+// Pinia Store
+// ========================================
+
+/**
+ * 날씨 데이터와 즐겨찾기 상태를 관리하는
+ * Pinia Store 인스턴스입니다.
+ */
+const weatherStore = useWeatherStore()
+
+/**
+ * Store의 state를 구조 분해할 때
+ * 반응성이 유지되도록 storeToRefs를 사용합니다.
+ *
+ * action은 storeToRefs로 꺼내지 않고
+ * weatherStore.toggleFavorite() 형태로 직접 호출합니다.
+ */
+const { weatherList } = storeToRefs(weatherStore)
+
+// ========================================
 // 화면 상태
 // ========================================
 
 /**
- * 검색창에 입력한 도시 이름 또는 초성입니다.
+ * 검색창에 입력된 도시 이름 또는 초성입니다.
  */
 const searchQuery = ref('')
 
@@ -39,13 +59,13 @@ const searchQuery = ref('')
 const selectedRegion = ref('all')
 
 /**
- * 현재 선택된 도시의 ID입니다.
+ * 현재 선택한 도시의 ID입니다.
  */
 const selectedCityId = ref(null)
 
 /**
- * 즐겨찾기 변경 결과를
- * 스크린리더에 전달하는 메시지입니다.
+ * 즐겨찾기 변경 결과를 스크린리더에
+ * 전달하기 위한 메시지입니다.
  */
 const favoriteMessage = ref('')
 
@@ -54,7 +74,7 @@ const favoriteMessage = ref('')
 // ========================================
 
 /**
- * SearchBar에서 전달된 검색어를 저장합니다.
+ * SearchBar 컴포넌트에서 전달한 검색어를 저장합니다.
  *
  * @param {string} newQuery
  */
@@ -67,7 +87,7 @@ const updateSearchQuery = (newQuery) => {
 // ========================================
 
 /**
- * 전체 날씨 목록에서 도시 이름이나
+ * 전체 날씨 목록에서 도시 이름 또는
  * 한글 초성이 검색어와 일치하는 도시를 반환합니다.
  *
  * 예:
@@ -77,9 +97,6 @@ const updateSearchQuery = (newQuery) => {
 const searchedWeatherList = computed(() => {
   const keyword = searchQuery.value.trim()
 
-  /**
-   * 검색어가 없으면 전체 도시 목록을 반환합니다.
-   */
   if (keyword === '') {
     return weatherList.value
   }
@@ -96,13 +113,8 @@ const searchedWeatherList = computed(() => {
 // ========================================
 
 /**
- * 도시 검색 결과에 지역 필터를 적용합니다.
- *
- * 처리 순서:
- * 전체 도시
- * → 이름 및 초성 검색
- * → 지역 필터
- * → 화면 출력
+ * 이름 및 초성 검색 결과에
+ * 지역 필터를 추가로 적용합니다.
  */
 const displayedWeatherList = computed(() => {
   if (selectedRegion.value === 'all') {
@@ -121,8 +133,7 @@ const displayedWeatherList = computed(() => {
 /**
  * 현재 검색 및 필터 결과를 설명하는 문구입니다.
  *
- * 화면에 표시하며, 검색 결과가 변경되면
- * 스크린리더에서도 안내합니다.
+ * 화면과 aria-live 영역에서 함께 사용합니다.
  */
 const resultMessage = computed(() => {
   const resultCount = displayedWeatherList.value.length
@@ -139,8 +150,7 @@ const resultMessage = computed(() => {
 // ========================================
 
 /**
- * 도시 선택 버튼을 누르면
- * 해당 도시를 선택 상태로 변경합니다.
+ * WeatherCard가 전달한 도시를 선택 상태로 변경합니다.
  *
  * @param {Object} city
  */
@@ -149,7 +159,7 @@ const selectCity = (city) => {
 }
 
 /**
- * 현재 선택된 도시 이름입니다.
+ * 현재 선택된 도시의 이름입니다.
  */
 const selectedCityName = computed(() => {
   const selectedCity = weatherList.value.find((city) => {
@@ -164,17 +174,15 @@ const selectedCityName = computed(() => {
 // ========================================
 
 /**
+ * Pinia Store의 action을 호출해
  * 도시의 즐겨찾기 상태를 변경합니다.
- *
- * 변경 결과를 화면에는 추가하지 않고,
- * 스크린리더용 상태 메시지로 전달합니다.
  *
  * @param {Object} city
  */
 const handleToggleFavorite = (city) => {
   const willBeFavorite = !city.favorite
 
-  toggleFavorite(city.id)
+  weatherStore.toggleFavorite(city.id)
 
   favoriteMessage.value = willBeFavorite
     ? `${city.name}을 즐겨찾기에 추가했습니다.`
@@ -186,7 +194,7 @@ const handleToggleFavorite = (city) => {
 // ========================================
 
 /**
- * 선택한 도시의 상세 날씨 페이지로 이동합니다.
+ * 도시 ID를 동적 경로 파라미터로 전달합니다.
  *
  * 예:
  * city_01 → /weather/city_01
@@ -204,13 +212,14 @@ const moveToDetail = (cityId) => {
 }
 
 // ========================================
-// 검색 결과 카드 확인
+// 검색 결과 카드 강조
 // ========================================
 
 /**
- * 현재 카드의 도시가 검색어와 일치하는지 확인합니다.
+ * 도시 이름 또는 초성이 현재 검색어와
+ * 일치하는지 확인합니다.
  *
- * 검색어가 없으면 검색 결과 강조를 적용하지 않습니다.
+ * 검색어가 없을 때는 강조하지 않습니다.
  *
  * @param {Object} city
  * @returns {boolean}
@@ -230,10 +239,7 @@ const isSearchedCity = (city) => {
 // ========================================
 
 /**
- * 검색어와 지역 필터를 기본 상태로 되돌립니다.
- *
- * 템플릿의 @click 안에서 여러 대입문을 작성하지 않아
- * Vue 표현식 파싱 오류를 방지합니다.
+ * 검색어와 지역 필터를 초기 상태로 되돌립니다.
  */
 const resetSearchConditions = () => {
   searchQuery.value = ''
@@ -245,10 +251,7 @@ const resetSearchConditions = () => {
 // ========================================
 
 /**
- * 선택 도시와 지역 필터를 감시합니다.
- *
- * 변경된 값을 이전 값과 비교한 뒤
- * 콘솔에 변경 내용을 출력합니다.
+ * 선택 도시와 지역 필터의 변경을 감시합니다.
  */
 watch(
   [selectedCityId, selectedRegion],
@@ -285,7 +288,7 @@ watch(
 // ========================================
 
 /**
- * 검색어, 선택 지역, 결과 개수를 자동으로 추적합니다.
+ * 검색어, 지역, 결과 개수를 자동으로 추적합니다.
  */
 watchEffect(() => {
   const keyword = searchQuery.value.trim() || '전체'
@@ -298,10 +301,6 @@ watchEffect(() => {
 
 <template>
   <div class="weather-page">
-    <!--
-      App.vue에 main 요소가 있으므로
-      View 내부에서는 main을 중복 사용하지 않습니다.
-    -->
     <div class="weather-container">
       <!-- ========================================
            페이지 제목
@@ -311,17 +310,13 @@ watchEffect(() => {
 
         <p>도시 이름이나 초성으로 검색하고, 원하는 지역의 날씨를 확인하세요.</p>
 
-        <!--
-          디지털 환경에 익숙하지 않은 사용자도
-          검색 방법을 이해할 수 있도록 예시를 제공합니다.
-        -->
         <p class="page-help">
           도시 이름을 직접 입력하거나 한글 초성을 입력할 수 있습니다. 예: 서울, 대전, ㅅㅇ, ㄷㅈ
         </p>
       </header>
 
       <!-- ========================================
-           도시 검색 및 지역 필터
+           검색 및 지역 필터
       ========================================= -->
       <BaseDashboardCard title="도시 검색 및 지역 필터">
         <SearchBar :search-query="searchQuery" @update-query="updateSearchQuery" />
@@ -371,17 +366,10 @@ watchEffect(() => {
            날씨 카드 목록
       ========================================= -->
       <BaseDashboardCard :title="`${regionLabels[selectedRegion]} 날씨 현황`">
-        <!--
-          검색 결과가 변경되면
-          스크린리더가 변경된 도시 개수를 안내합니다.
-        -->
         <p class="result-status" role="status" aria-live="polite" aria-atomic="true">
           {{ resultMessage }}
         </p>
 
-        <!--
-          즐겨찾기 변경 결과를 스크린리더에 전달합니다.
-        -->
         <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {{ favoriteMessage }}
         </p>
@@ -399,7 +387,7 @@ watchEffect(() => {
           />
         </div>
 
-        <!-- 검색 및 필터 결과가 없는 경우 -->
+        <!-- 검색 및 필터 결과 없음 -->
         <div v-else class="empty-result" role="status">
           <p class="empty-message">선택한 지역과 검색 조건에 일치하는 도시가 없습니다.</p>
 
@@ -412,7 +400,7 @@ watchEffect(() => {
       </BaseDashboardCard>
 
       <!-- ========================================
-           선택된 도시 안내
+           선택 도시 안내
       ========================================= -->
       <p v-if="selectedCityName" class="selected-message" role="status" aria-live="polite">
         <strong>
@@ -476,9 +464,6 @@ watchEffect(() => {
   line-height: 1.6;
 }
 
-/*
-  검색 방법을 안내하는 보조 문구입니다.
-*/
 .page-header .page-help {
   max-width: 720px;
   margin-top: 12px;
@@ -573,32 +558,25 @@ watchEffect(() => {
 }
 
 /* ========================================
-   날씨 카드 그리드
+   날씨 카드 목록
 ======================================== */
 
 .weather-grid {
   display: grid;
 
   /*
-    데스크톱에서는 한 행에 3개의 카드를 표시합니다.
-
-    auto-fill을 사용하지 않으므로
-    여러 카드가 한 열에만 표시되는 문제를 방지합니다.
+    데스크톱 화면에서는 3열로 표시합니다.
   */
   grid-template-columns: repeat(3, minmax(0, 1fr));
 
-  /*
-    위아래 카드 간격 32px,
-    좌우 카드 간격 22px입니다.
-  */
   gap: 32px 22px;
 
   width: 100%;
 }
 
 /*
-  결과가 한 개뿐일 때는 카드가
-  대시보드 전체 너비로 커지지 않도록 제한합니다.
+  결과가 한 개뿐일 때는
+  카드가 전체 너비로 늘어나지 않도록 제한합니다.
 */
 .weather-grid > :only-child {
   width: 100%;
@@ -688,9 +666,6 @@ watchEffect(() => {
     padding: 32px 28px 52px;
   }
 
-  /*
-    태블릿에서는 한 행에 2개의 카드를 표시합니다.
-  */
   .weather-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -709,18 +684,11 @@ watchEffect(() => {
     padding: 24px 16px 40px;
   }
 
-  /*
-    모바일에서는 한 행에 카드 하나를 표시합니다.
-  */
   .weather-grid {
     grid-template-columns: 1fr;
     row-gap: 32px;
   }
 
-  /*
-    모바일에서는 결과가 하나여도
-    사용 가능한 너비를 전부 사용합니다.
-  */
   .weather-grid > :only-child {
     max-width: none;
   }

@@ -8,6 +8,9 @@ defineProps({
 
 const emit = defineEmits(['update-query'])
 
+/**
+ * 입력된 검색어를 부모 컴포넌트에 전달합니다.
+ */
 const handleInput = (event) => {
   emit('update-query', event.target.value)
 }

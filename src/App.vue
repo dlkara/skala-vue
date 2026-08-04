@@ -3,38 +3,37 @@ import { nextTick, watch } from 'vue'
 
 import { useRoute } from 'vue-router'
 
+import UnitToggle from '@/components/exercise/UnitToggle.vue'
+
 const route = useRoute()
 
 /**
- * 페이지가 변경되면 새로운 본문 영역으로
- * 키보드 초점을 이동합니다.
+ * 페이지가 변경되면 본문으로 초점을 이동합니다.
  */
 watch(
   () => route.fullPath,
   async () => {
     await nextTick()
 
-    const mainContent = document.querySelector('#main-content')
-
-    mainContent?.focus()
+    document.querySelector('#main-content')?.focus()
   },
 )
 </script>
 
 <template>
   <div class="app">
-    <!--
-      키보드 사용자가 반복되는 메뉴를 건너뛰고
-      본문으로 바로 이동할 수 있습니다.
-    -->
+    <!-- 본문 바로가기 -->
     <a href="#main-content" class="skip-link"> 본문으로 바로가기 </a>
 
+    <!-- 공통 헤더 -->
     <header class="app-header">
       <div class="header-inner">
+        <!-- 서비스 로고 -->
         <RouterLink to="/" class="app-logo" aria-label="Weather Now 날씨 홈으로 이동">
           Weather<span>Now</span>
         </RouterLink>
 
+        <!-- 주요 메뉴 -->
         <nav class="navigation" aria-label="주요 메뉴">
           <RouterLink to="/" class="nav-link"> 날씨 홈 </RouterLink>
 
@@ -42,9 +41,13 @@ watch(
 
           <RouterLink to="/about" class="nav-link"> 서비스 소개 </RouterLink>
         </nav>
+
+        <!-- 온도 단위 변경 -->
+        <UnitToggle class="header-unit-toggle" />
       </div>
     </header>
 
+    <!-- 공통 본문 -->
     <main id="main-content" class="main-content" tabindex="-1">
       <RouterView />
     </main>
@@ -52,6 +55,10 @@ watch(
 </template>
 
 <style scoped>
+/* ========================================
+   전체 애플리케이션
+======================================== */
+
 .app {
   min-width: 0;
   min-height: 100vh;
@@ -103,26 +110,30 @@ watch(
   border-bottom: 1px solid #dbe3ee;
 
   background-color: rgb(255 255 255 / 96%);
+
   backdrop-filter: blur(10px);
 }
 
 /*
-  padding이 width 밖으로 더해지지 않도록
-  border-box를 사용합니다.
+  PC 기본 구조:
+  로고 | 메뉴 | 단위 변경
 */
 .header-inner {
-  box-sizing: border-box;
-
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    auto
+    minmax(0, 1fr)
+    auto;
   align-items: center;
-  justify-content: space-between;
   gap: 24px;
+
+  box-sizing: border-box;
 
   width: 100%;
   max-width: 1440px;
-  min-height: 70px;
+  min-height: 76px;
   margin: 0 auto;
-  padding: 0 clamp(24px, 5vw, 80px);
+  padding: 10px clamp(24px, 5vw, 80px);
 }
 
 /* ========================================
@@ -130,7 +141,7 @@ watch(
 ======================================== */
 
 .app-logo {
-  flex: 0 0 auto;
+  flex-shrink: 0;
 
   color: #172033;
   font-size: 22px;
@@ -145,7 +156,7 @@ watch(
 }
 
 /* ========================================
-   메뉴
+   내비게이션
 ======================================== */
 
 .navigation {
@@ -194,7 +205,7 @@ watch(
 
 .main-content {
   min-width: 0;
-  min-height: calc(100vh - 70px);
+  min-height: calc(100vh - 76px);
 }
 
 .main-content:focus {
@@ -202,41 +213,83 @@ watch(
 }
 
 /* ========================================
-   반응형
+   태블릿
 ======================================== */
 
-@media (max-width: 900px) {
+/*
+  태블릿에서는 다음처럼 2행으로 구성합니다.
+
+  1행: 로고 / 단위 설정
+  2행: 내비게이션 전체
+
+  기존처럼 로고, 메뉴, 단위 버튼이
+  각각 별도 행에 놓이는 문제를 방지합니다.
+*/
+@media (min-width: 651px) and (max-width: 1000px) {
   .header-inner {
-    gap: 16px;
-    padding-right: 24px;
-    padding-left: 24px;
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto;
+    grid-template-areas:
+      'logo unit'
+      'navigation navigation';
+    gap: 8px 20px;
+
+    padding: 12px 28px 14px;
+  }
+
+  .app-logo {
+    grid-area: logo;
+  }
+
+  .header-unit-toggle {
+    grid-area: unit;
   }
 
   .navigation {
-    gap: 3px;
+    grid-area: navigation;
+
+    justify-content: flex-start;
+
+    width: 100%;
+    padding-top: 6px;
+
+    border-top: 1px solid #e2e8f0;
   }
 
   .nav-link {
-    padding-right: 11px;
-    padding-left: 11px;
+    flex: 0 0 auto;
   }
 }
 
+/* ========================================
+   모바일
+======================================== */
+
 @media (max-width: 650px) {
   .header-inner {
-    align-items: flex-start;
+    display: flex;
+    align-items: stretch;
     flex-direction: column;
     gap: 10px;
 
-    padding-top: 15px;
-    padding-bottom: 12px;
+    padding: 15px 16px 13px;
+  }
+
+  .app-logo {
+    align-self: flex-start;
   }
 
   .navigation {
     justify-content: flex-start;
+    order: 2;
 
     width: 100%;
     overflow-x: auto;
+  }
+
+  .header-unit-toggle {
+    order: 3;
   }
 
   .nav-link {
@@ -245,11 +298,6 @@ watch(
 }
 
 @media (max-width: 430px) {
-  .header-inner {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
   .navigation {
     gap: 2px;
   }
