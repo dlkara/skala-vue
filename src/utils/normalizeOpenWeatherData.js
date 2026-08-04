@@ -1,100 +1,130 @@
 /**
- * 숫자를 소수 첫째 자리까지 반올림합니다.
- */
-const roundWeatherValue = (value) => {
-  if (typeof value !== 'number') {
-    return null
-  }
-
-  return Math.round(value * 10) / 10
-}
-
-/**
- * OpenWeatherMap Current Weather API 응답을
- * Weather Now 화면용 객체로 변환합니다.
+ * OpenWeather API 응답을
+ * 프로젝트에서 사용하는 날씨 객체로 변환합니다.
  *
- * API 원본:
- * apiData.weather[0].description
- * apiData.main.feels_like
+ * 예:
+ * API 응답의 main.feels_like
+ * → 프로젝트의 main.feelsLike
  *
- * 화면용 객체:
- * city.weather.description
- * city.main.feelsLike
+ *** @param {Object} apiData OpenWeather API 응답
+ *** @param {Object} location 프로젝트의 지역 객체
+ *** @param {boolean} favorite 즐겨찾기 여부
+ *** @returns {Object}
  */
-export const normalizeOpenWeatherData = (apiData, cityConfig, favorite = false) => {
-  const currentWeather = apiData.weather?.[0] ?? {}
+export const normalizeOpenWeatherData = (apiData, location, favorite = false) => {
+  /**
+   * OpenWeather의 weather는 배열입니다.
+   * 첫 번째 항목을 대표 날씨로 사용합니다.
+   */
+  const weatherInfo = apiData.weather?.[0] ?? {}
 
   return {
-    // Weather Now 내부 정보
-    id: cityConfig.id,
-    name: cityConfig.name,
-    apiName: cityConfig.apiName,
+    // ========================================
+    // 지역 기본 정보
+    // ========================================
 
-    countryCode: apiData.sys?.country ?? cityConfig.countryCode ?? 'KR',
+    id: location.id,
 
-    regionCode: cityConfig.regionCode,
-    region: cityConfig.region,
+    name: location.name ?? apiData.name ?? '지역 이름 없음',
 
-    // 위치
+    apiName: location.apiName ?? apiData.name ?? '',
+
+    countryCode: location.countryCode ?? apiData.sys?.country ?? '',
+
+    regionCode: location.regionCode ?? 'searched',
+
+    region: location.region ?? '검색 추가 지역',
+
+    addedByUser: location.addedByUser ?? false,
+
+    favorite,
+
+    // ========================================
+    // 좌표
+    // ========================================
+
     coord: {
-      lat: apiData.coord?.lat ?? cityConfig.coord?.lat ?? null,
+      lat: apiData.coord?.lat ?? location.coord?.lat ?? null,
 
-      lon: apiData.coord?.lon ?? cityConfig.coord?.lon ?? null,
+      lon: apiData.coord?.lon ?? location.coord?.lon ?? null,
     },
 
-    // 대표 날씨
+    // ========================================
+    // 대표 날씨 정보
+    // ========================================
+
     weather: {
-      id: currentWeather.id ?? null,
-      main: currentWeather.main ?? 'Unknown',
+      id: weatherInfo.id ?? null,
 
-      description: currentWeather.description ?? '날씨 정보 없음',
+      main: weatherInfo.main ?? 'Unknown',
 
-      icon: currentWeather.icon ?? '',
+      description: weatherInfo.description ?? '날씨 정보 없음',
+
+      icon: weatherInfo.icon ?? '',
     },
 
-    // 기온 및 대기
+    // ========================================
+    // 기온 및 대기 정보
+    // ========================================
+
     main: {
-      temp: roundWeatherValue(apiData.main?.temp),
+      temp: apiData.main?.temp ?? null,
 
-      feelsLike: roundWeatherValue(apiData.main?.feels_like),
+      feelsLike: apiData.main?.feels_like ?? null,
 
-      tempMin: roundWeatherValue(apiData.main?.temp_min),
+      tempMin: apiData.main?.temp_min ?? null,
 
-      tempMax: roundWeatherValue(apiData.main?.temp_max),
+      tempMax: apiData.main?.temp_max ?? null,
 
       pressure: apiData.main?.pressure ?? null,
 
       humidity: apiData.main?.humidity ?? null,
     },
 
+    // ========================================
     // 바람
+    // ========================================
+
     wind: {
-      speed: roundWeatherValue(apiData.wind?.speed),
+      speed: apiData.wind?.speed ?? null,
 
       deg: apiData.wind?.deg ?? null,
 
-      gust: roundWeatherValue(apiData.wind?.gust),
+      gust: apiData.wind?.gust ?? null,
     },
 
-    // 일출·일몰
+    // ========================================
+    // 일출 및 일몰
+    // ========================================
+
     sys: {
-      country: apiData.sys?.country ?? cityConfig.countryCode ?? 'KR',
+      country: apiData.sys?.country ?? location.countryCode ?? '',
 
       sunrise: apiData.sys?.sunrise ?? null,
 
       sunset: apiData.sys?.sunset ?? null,
     },
 
-    // 기타 API 데이터
+    // ========================================
+    // 기타 정보
+    // ========================================
+
     visibility: apiData.visibility ?? null,
 
     observedAt: apiData.dt ?? null,
 
+    /**
+     * OpenWeather가 반환한
+     * 해당 지역의 UTC 기준 시차입니다.
+     */
     timezone: apiData.timezone ?? null,
 
+    /**
+     * OpenWeather 내부 지역 ID입니다.
+     *
+     * 프로젝트에서는 이 값이 아니라
+     * 직접 생성한 location ID를 사용합니다.
+     */
     openWeatherId: apiData.id ?? null,
-
-    // Weather Now 내부 상태
-    favorite,
   }
 }

@@ -58,16 +58,6 @@ const futurePlanList = [
   },
 
   {
-    title: 'Pinia 상태 관리',
-    description: '날씨 데이터와 즐겨찾기 상태를 Pinia Store로 이전할 예정입니다.',
-  },
-
-  {
-    title: '즐겨찾기 저장',
-    description: 'Local Storage를 적용해 새로고침 이후에도 즐겨찾기가 유지되도록 할 예정입니다.',
-  },
-
-  {
     title: '로딩 및 오류 상태',
     description: 'API 요청 중 로딩 화면, 오류 메시지와 다시 시도하기 기능을 추가할 예정입니다.',
   },

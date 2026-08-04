@@ -1,55 +1,53 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 
 import { storeToRefs } from 'pinia'
+
 import { useRouter } from 'vue-router'
 
+import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
 import WeatherCard from '@/components/exercise/WeatherCard.vue'
 
 import { useWeatherStore } from '@/stores/weatherStore'
 
 // ========================================
-// Router
+// Router 및 Store
 // ========================================
 
 const router = useRouter()
 
-// ========================================
-// Pinia Store
-// ========================================
-
-/**
- * 날씨와 즐겨찾기를 관리하는 Store입니다.
- */
 const weatherStore = useWeatherStore()
 
-/**
- * Store getter는 storeToRefs로 꺼내야
- * 반응성이 유지됩니다.
- */
-const { favoriteWeatherList, favoriteCount } = storeToRefs(weatherStore)
-
-// ========================================
-// 화면 상태
-// ========================================
+const { favoriteWeatherList, favoriteCount, isLoading, errorMessage } = storeToRefs(weatherStore)
 
 /**
- * 즐겨찾기 변경 결과를
- * 스크린리더에 전달합니다.
+ * 즐겨찾기 해제 결과를
+ * 스크린리더에 전달할 메시지입니다.
  */
 const favoriteMessage = ref('')
 
 // ========================================
-// 즐겨찾기
+// 이벤트
 // ========================================
 
 /**
- * 즐겨찾기 상태를 Pinia action으로 변경합니다.
+ * 상세 페이지로 이동합니다.
+ */
+const moveToDetail = (city) => {
+  router.push({
+    name: 'weather-detail',
+
+    params: {
+      cityId: city.id,
+    },
+  })
+}
+
+/**
+ * 즐겨찾기 상태를 변경합니다.
  *
- * 즐겨찾기 페이지에서 해제하면
- * 해당 카드는 목록에서 즉시 사라집니다.
- *
- * @param {Object} city
+ * 이 화면에서는 현재 즐겨찾기 도시만 보이므로
+ * 해제하면 해당 카드가 목록에서 바로 사라집니다.
  */
 const handleToggleFavorite = (city) => {
   const willBeFavorite = !city.favorite
@@ -61,145 +59,173 @@ const handleToggleFavorite = (city) => {
     : `${city.name}을 즐겨찾기에서 해제했습니다.`
 }
 
+/**
+ * 홈 화면으로 이동합니다.
+ */
+const moveToHome = () => {
+  router.push({
+    name: 'weather-home',
+  })
+}
+
 // ========================================
-// 상세 페이지 이동
+// 최초 API 요청
 // ========================================
 
 /**
- * 선택한 도시의 상세 페이지로 이동합니다.
+ * 사용자가 /favorites 주소로 바로 접속해도
+ * 날씨 목록을 불러올 수 있도록 API를 호출합니다.
  *
- * @param {string} cityId
+ * Store의 hasFetched 조건 때문에
+ * 이미 불러온 경우에는 중복 요청하지 않습니다.
  */
-const moveToDetail = (cityId) => {
-  router.push({
-    name: 'weather-detail',
-
-    params: {
-      cityId,
-    },
-  })
-}
+onMounted(() => {
+  weatherStore.fetchAllWeather()
+})
 </script>
 
 <template>
-  <div class="favorites-page">
-    <div class="favorites-container">
-      <!-- ========================================
-           페이지 제목
-      ========================================= -->
-      <header class="page-header">
-        <h1>즐겨찾기 도시</h1>
+  <section class="favorites-view">
+    <header class="page-header">
+      <p class="page-eyebrow">Favorite Cities</p>
 
-        <p>관심 있는 도시의 현재 날씨를 한곳에서 확인할 수 있습니다.</p>
-      </header>
+      <h1 class="page-title">즐겨찾기 도시</h1>
 
-      <!--
-        즐겨찾기 개수가 변경되면
-        스크린리더가 변경 내용을 읽어줍니다.
-      -->
-      <p class="result-status" role="status" aria-live="polite" aria-atomic="true">
-        즐겨찾기한 도시
-        <strong>{{ favoriteCount }}</strong
-        >개가 표시되었습니다.
+      <p class="page-description">즐겨찾기에 등록한 도시의 현재 날씨를 모아서 확인합니다.</p>
+    </header>
+
+    <BaseDashboardCard :title="`즐겨찾기 목록 (${favoriteCount})`">
+      <p v-if="isLoading" class="loading-message" role="status" aria-live="polite">
+        즐겨찾기 도시의 날씨를 불러오고 있습니다.
       </p>
 
-      <!-- 즐겨찾기 변경 결과 음성 안내 -->
+      <div v-else-if="errorMessage" class="error-box" role="alert">
+        <p>
+          {{ errorMessage }}
+        </p>
+
+        <button type="button" class="primary-button" @click="weatherStore.refreshWeather()">
+          다시 불러오기
+        </button>
+      </div>
+
+      <div v-else-if="favoriteWeatherList.length > 0" class="weather-grid">
+        <WeatherCard
+          v-for="city in favoriteWeatherList"
+          :key="city.id"
+          :city="city"
+          :selected="false"
+          @click-detail="moveToDetail"
+          @toggle-favorite="handleToggleFavorite"
+        />
+      </div>
+
+      <div v-else class="empty-state">
+        <p>아직 즐겨찾기에 등록한 도시가 없습니다.</p>
+
+        <button type="button" class="primary-button" @click="moveToHome">날씨 도시 확인하기</button>
+      </div>
+
       <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {{ favoriteMessage }}
       </p>
-
-      <!-- ========================================
-           즐겨찾기 카드 목록
-      ========================================= -->
-      <section v-if="favoriteCount > 0" aria-labelledby="favorite-list-title">
-        <h2 id="favorite-list-title" class="sr-only">즐겨찾기 도시 목록</h2>
-
-        <div class="weather-grid">
-          <WeatherCard
-            v-for="city in favoriteWeatherList"
-            :key="city.id"
-            :city="city"
-            @click-detail="moveToDetail"
-            @toggle-favorite="handleToggleFavorite"
-          />
-        </div>
-      </section>
-
-      <!-- ========================================
-           즐겨찾기 없음
-      ========================================= -->
-      <section v-else class="empty-state" aria-labelledby="favorite-empty-title">
-        <h2 id="favorite-empty-title">즐겨찾기한 도시가 없습니다</h2>
-
-        <p>
-          날씨 홈에서 도시 카드의 ‘즐겨찾기 추가’ 버튼을 누르면 이곳에서 관심 도시를 모아 볼 수
-          있습니다.
-        </p>
-
-        <RouterLink to="/" class="home-link"> 날씨 홈으로 이동 </RouterLink>
-      </section>
-    </div>
-  </div>
+    </BaseDashboardCard>
+  </section>
 </template>
 
 <style scoped>
-/* ========================================
-   전체 페이지
-======================================== */
+.favorites-view {
+  display: grid;
+  gap: 24px;
 
-.favorites-page {
-  min-height: calc(100vh - 70px);
-  padding: 40px clamp(24px, 5vw, 80px) 64px;
-
-  background-color: #f5f7fb;
-}
-
-.favorites-container {
   width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
 }
-
-/* ========================================
-   페이지 제목
-======================================== */
 
 .page-header {
-  margin-bottom: 24px;
+  display: grid;
+  gap: 8px;
 }
 
-.page-header h1 {
+.page-eyebrow,
+.page-title,
+.page-description {
+  margin: 0;
+}
+
+.page-eyebrow {
+  color: #2563eb;
+
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.page-title {
+  color: #0f172a;
+
+  font-size: clamp(28px, 4vw, 42px);
+}
+
+.page-description {
+  color: #64748b;
+
+  line-height: 1.7;
+}
+
+.loading-message {
   margin: 0;
 
-  color: #172033;
-  font-size: clamp(26px, 3vw, 36px);
-}
+  padding: 14px 16px;
 
-.page-header p {
-  margin: 9px 0 0;
+  border-radius: 10px;
 
-  color: #64748b;
-  line-height: 1.6;
-}
+  background-color: #eff6ff;
+  color: #1d4ed8;
 
-/* ========================================
-   결과 안내
-======================================== */
-
-.result-status {
-  margin: 0 0 20px;
-
-  color: #475569;
+  font-size: 14px;
   font-weight: 700;
 }
 
-.result-status strong {
-  color: #1d4ed8;
+.error-box {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  padding: 14px 16px;
+
+  border-radius: 10px;
+
+  background-color: #fef2f2;
+  color: #b91c1c;
 }
 
-/* ========================================
-   즐겨찾기 카드 목록
-======================================== */
+.error-box p {
+  margin: 0;
+}
+
+.primary-button {
+  min-height: 42px;
+
+  padding: 9px 14px;
+
+  border: 1px solid #2563eb;
+  border-radius: 9px;
+
+  background-color: #2563eb;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background-color: #1d4ed8;
+}
 
 .weather-grid {
   display: grid;
@@ -211,72 +237,26 @@ const moveToDetail = (cityId) => {
   width: 100%;
 }
 
-/*
-  즐겨찾기가 하나뿐일 때
-  카드가 전체 너비로 늘어나지 않도록 합니다.
-*/
 .weather-grid > :only-child {
   width: 100%;
   max-width: 420px;
 }
 
-/* ========================================
-   빈 상태
-======================================== */
-
 .empty-state {
-  padding: 48px 24px;
+  display: grid;
 
-  border: 1px solid #dbe3ee;
-  border-radius: 18px;
+  justify-items: start;
 
-  background-color: #ffffff;
+  gap: 14px;
 
-  box-shadow: 0 8px 24px rgb(15 23 42 / 6%);
+  padding: 30px 0;
 
-  text-align: center;
-}
-
-.empty-state h2 {
-  margin: 0;
-
-  color: #172033;
-  font-size: 23px;
+  color: #64748b;
 }
 
 .empty-state p {
-  max-width: 520px;
-  margin: 13px auto 0;
-
-  color: #64748b;
-  line-height: 1.75;
+  margin: 0;
 }
-
-.home-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  min-height: 44px;
-  margin-top: 22px;
-  padding: 9px 17px;
-
-  border-radius: 9px;
-
-  background-color: #2563eb;
-  color: #ffffff;
-
-  font-weight: 850;
-  text-decoration: none;
-}
-
-.home-link:hover {
-  background-color: #1d4ed8;
-}
-
-/* ========================================
-   태블릿
-======================================== */
 
 @media (max-width: 1100px) {
   .weather-grid {
@@ -288,17 +268,19 @@ const moveToDetail = (cityId) => {
   }
 }
 
-/* ========================================
-   모바일
-======================================== */
-
 @media (max-width: 600px) {
-  .favorites-page {
-    padding: 24px 16px 40px;
+  .error-box {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .primary-button {
+    width: 100%;
   }
 
   .weather-grid {
     grid-template-columns: 1fr;
+
     row-gap: 32px;
   }
 

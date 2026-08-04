@@ -1,166 +1,160 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+
+import { storeToRefs } from 'pinia'
 
 import { useRoute, useRouter } from 'vue-router'
 
-import { useTemperature } from '@/composables/useTemperature'
+import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
 
-import { useConfigStore } from '@/stores/configStore'
+import { useTemperature } from '@/composables/useTemperature'
 
 import { useWeatherStore } from '@/stores/weatherStore'
 
 import { getWeatherIconUrl } from '@/utils/getWeatherIconUrl'
 
 // ========================================
-// Router
+// Router 및 Store
 // ========================================
 
 const route = useRoute()
+
 const router = useRouter()
 
-// ========================================
-// Pinia Store
-// ========================================
-
-/**
- * 날씨 데이터와 즐겨찾기를 관리합니다.
- */
 const weatherStore = useWeatherStore()
 
-/**
- * 온도 단위 설정을 관리합니다.
- *
- * Store를 직접 참조하므로 단위가 변경되면
- * 템플릿에 표시되는 이름과 기호도 갱신됩니다.
- */
-const configStore = useConfigStore()
-
-// ========================================
-// 화면 상태
-// ========================================
+const { isLoading, errorMessage } = storeToRefs(weatherStore)
 
 /**
- * 즐겨찾기 변경 결과를
- * 스크린리더에 전달합니다.
+ * 즐겨찾기 변경 안내입니다.
  */
 const favoriteMessage = ref('')
 
 // ========================================
-// 도시 조회
+// 현재 도시
 // ========================================
 
 /**
- * weatherStore의 getter를 이용해
- * URL의 cityId와 일치하는 도시를 조회합니다.
- *
- * 예:
- * /weather/city_01
- * → city_01에 해당하는 도시
+ * URL의 cityId에 해당하는
+ * 날씨 객체를 Store에서 찾습니다.
  */
 const city = computed(() => {
-  return weatherStore.getWeatherById(route.params.cityId)
-})
+  const cityId = String(route.params.cityId ?? '')
 
-// ========================================
-// 날씨 아이콘
-// ========================================
-
-/**
- * OpenWeatherMap 아이콘 코드로
- * 공식 날씨 아이콘 주소를 생성합니다.
- */
-const weatherIconUrl = computed(() => {
-  if (!city.value) {
-    return ''
-  }
-
-  return getWeatherIconUrl(city.value.weather.icon, '4x')
-})
-
-// ========================================
-// 온도 원본 값
-// ========================================
-
-/**
- * useTemperature에 전달할 섭씨 원본입니다.
- *
- * 도시 정보가 없거나 값이 없으면 null을 반환합니다.
- */
-const currentTemp = computed(() => {
-  return city.value?.main.temp ?? null
-})
-
-const feelsLikeTemp = computed(() => {
-  return city.value?.main.feelsLike ?? null
-})
-
-const minimumTemp = computed(() => {
-  return city.value?.main.tempMin ?? null
-})
-
-const maximumTemp = computed(() => {
-  return city.value?.main.tempMax ?? null
+  return weatherStore.getWeatherById(cityId)
 })
 
 // ========================================
 // 온도 단위 변환
 // ========================================
 
-/**
- * 각 온도 값에 동일한 Composable을 적용합니다.
- *
- * configStore의 unit이 변경되면
- * 네 온도 값이 동시에 다시 계산됩니다.
- */
-const {
-  displayTemperature: currentDisplayTemperature,
+const currentTemperatureSource = computed(() => {
+  return city.value?.main?.temp
+})
 
-  formattedTemperature: formattedCurrentTemperature,
-} = useTemperature(currentTemp)
+const feelsLikeSource = computed(() => {
+  return city.value?.main?.feelsLike
+})
 
-const {
-  displayTemperature: feelsLikeDisplayTemperature,
+const minimumTemperatureSource = computed(() => {
+  return city.value?.main?.tempMin
+})
 
-  formattedTemperature: formattedFeelsLikeTemperature,
-} = useTemperature(feelsLikeTemp)
+const maximumTemperatureSource = computed(() => {
+  return city.value?.main?.tempMax
+})
 
-const {
-  displayTemperature: minimumDisplayTemperature,
+const { formattedTemperature: currentTemperature } = useTemperature(currentTemperatureSource)
 
-  formattedTemperature: formattedMinimumTemperature,
-} = useTemperature(minimumTemp)
+const { formattedTemperature: feelsLikeTemperature } = useTemperature(feelsLikeSource)
 
-const {
-  displayTemperature: maximumDisplayTemperature,
+const { formattedTemperature: minimumTemperature } = useTemperature(minimumTemperatureSource)
 
-  formattedTemperature: formattedMaximumTemperature,
-} = useTemperature(maximumTemp)
+const { formattedTemperature: maximumTemperature } = useTemperature(maximumTemperatureSource)
 
 // ========================================
-// 가시거리
+// 화면 표시값
 // ========================================
 
 /**
- * OpenWeatherMap의 가시거리 단위인 미터를
- * 킬로미터로 변환합니다.
+ * OpenWeather 공식 아이콘 주소입니다.
  */
-const visibilityKilometers = computed(() => {
+const weatherIconUrl = computed(() => {
+  return getWeatherIconUrl(city.value?.weather?.icon, '4x')
+})
+
+const humidityText = computed(() => {
+  const humidity = city.value?.main?.humidity
+
+  if (humidity === null || humidity === undefined) {
+    return '정보 없음'
+  }
+
+  return `${humidity}%`
+})
+
+const pressureText = computed(() => {
+  const pressure = city.value?.main?.pressure
+
+  if (pressure === null || pressure === undefined) {
+    return '정보 없음'
+  }
+
+  return `${pressure} hPa`
+})
+
+const windSpeedText = computed(() => {
+  const windSpeed = city.value?.wind?.speed
+
+  if (windSpeed === null || windSpeed === undefined) {
+    return '정보 없음'
+  }
+
+  return `${windSpeed} m/s`
+})
+
+const visibilityText = computed(() => {
   const visibility = city.value?.visibility
 
   if (visibility === null || visibility === undefined) {
-    return null
+    return '정보 없음'
   }
 
-  return Math.round(visibility / 100) / 10
+  return `${(visibility / 1000).toFixed(1)} km`
+})
+
+/**
+ * 도시의 timezone 초 단위를 더한 뒤
+ * UTC 기준으로 표시해 도시 현지 시각을 계산합니다.
+ */
+const formatCityTime = (unixTimestamp) => {
+  if (!unixTimestamp || !city.value) {
+    return '정보 없음'
+  }
+
+  const timezoneOffset = city.value.timezone ?? 0
+
+  const cityDate = new Date((unixTimestamp + timezoneOffset) * 1000)
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  }).format(cityDate)
+}
+
+const sunriseText = computed(() => {
+  return formatCityTime(city.value?.sys?.sunrise)
+})
+
+const sunsetText = computed(() => {
+  return formatCityTime(city.value?.sys?.sunset)
 })
 
 // ========================================
-// 즐겨찾기
+// 이벤트
 // ========================================
 
-/**
- * 현재 도시의 즐겨찾기를 변경합니다.
- */
 const handleToggleFavorite = () => {
   if (!city.value) {
     return
@@ -168,614 +162,481 @@ const handleToggleFavorite = () => {
 
   const willBeFavorite = !city.value.favorite
 
+  const cityName = city.value.name
+
   weatherStore.toggleFavorite(city.value.id)
 
   favoriteMessage.value = willBeFavorite
-    ? `${city.value.name}을 즐겨찾기에 추가했습니다.`
-    : `${city.value.name}을 즐겨찾기에서 해제했습니다.`
+    ? `${cityName}을 즐겨찾기에 추가했습니다.`
+    : `${cityName}을 즐겨찾기에서 해제했습니다.`
 }
-
-// ========================================
-// 이전 페이지
-// ========================================
 
 const goBack = () => {
   router.back()
 }
+
+const moveToHome = () => {
+  router.push({
+    name: 'weather-home',
+  })
+}
+
+// ========================================
+// 최초 API 요청
+// ========================================
+
+/**
+ * 상세 URL로 직접 접근한 경우에도
+ * weatherList를 채울 수 있도록 API를 호출합니다.
+ */
+onMounted(async () => {
+  await weatherStore.fetchAllWeather()
+})
 </script>
 
 <template>
-  <div class="detail-page">
-    <div class="detail-container">
-      <!-- 이전 페이지 -->
-      <button type="button" class="back-button" @click="goBack">
-        <span aria-hidden="true"> ← </span>
+  <section class="detail-view">
+    <header class="page-header">
+      <p class="page-eyebrow">Weather Detail</p>
 
-        이전 페이지로 돌아가기
-      </button>
+      <h1 class="page-title">상세 날씨</h1>
 
-      <!-- 즐겨찾기 변경 결과 음성 안내 -->
-      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {{ favoriteMessage }}
+      <p class="page-description">선택한 지역의 상세 기상 정보를 확인합니다.</p>
+    </header>
+
+    <BaseDashboardCard title="지역별 상세 날씨">
+      <p v-if="isLoading" class="loading-message" role="status" aria-live="polite">
+        상세 날씨 정보를 불러오고 있습니다.
       </p>
 
-      <!-- ========================================
-           정상적인 도시 정보
-      ========================================= -->
-      <article v-if="city" class="detail-card" :aria-labelledby="`detail-title-${city.id}`">
-        <!-- 도시 제목 -->
-        <header class="detail-header">
-          <div class="detail-heading">
-            <p class="region">
-              {{ city.region }}
-            </p>
+      <div v-else-if="errorMessage" class="error-box" role="alert">
+        <p>
+          {{ errorMessage }}
+        </p>
 
-            <h1 :id="`detail-title-${city.id}`">{{ city.name }} 상세 날씨</h1>
+        <button type="button" class="primary-button" @click="weatherStore.refreshWeather()">
+          다시 불러오기
+        </button>
+      </div>
 
-            <p class="description">
-              현재 {{ city.name }}의 날씨는 {{ city.weather.description }}입니다.
-            </p>
-
-            <!--
-              현재 적용 중인 온도 단위를
-              화면에서도 명확하게 표시합니다.
-            -->
-            <p class="unit-information">
-              현재 온도 단위:
-              <strong>
-                {{ configStore.unitLabel }}
-                ({{ configStore.unitSymbol }})
-              </strong>
-            </p>
-          </div>
-
-          <button
-            type="button"
-            class="favorite-button"
-            :class="{
-              active: city.favorite,
-            }"
-            :aria-pressed="city.favorite"
-            :aria-label="
-              city.favorite ? `${city.name} 즐겨찾기 해제` : `${city.name} 즐겨찾기 추가`
-            "
-            @click="handleToggleFavorite"
-          >
-            <span class="favorite-icon" aria-hidden="true">
-              {{ city.favorite ? '★' : '☆' }}
-            </span>
-
-            <span>
-              {{ city.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가' }}
-            </span>
-          </button>
-        </header>
-
-        <!-- ========================================
-             현재 날씨 요약
-        ========================================= -->
-        <section class="current-weather" aria-labelledby="current-weather-title">
-          <h2 id="current-weather-title" class="sr-only">현재 날씨</h2>
-
-          <img
-            v-if="weatherIconUrl"
-            :src="weatherIconUrl"
-            alt=""
-            class="weather-icon"
-            aria-hidden="true"
-          />
-
-          <div v-else class="weather-icon-placeholder" aria-hidden="true" />
-
+      <article v-else-if="city" class="weather-detail">
+        <div class="detail-summary">
           <div>
-            <p class="temperature">
-              <span aria-hidden="true">
-                {{ formattedCurrentTemperature }}
-              </span>
-
-              <span v-if="currentDisplayTemperature !== null" class="sr-only">
-                현재 기온
-                {{ configStore.unitLabel }}
-                {{ currentDisplayTemperature }}도
-              </span>
-
-              <span v-else class="sr-only"> 현재 기온 정보 없음 </span>
+            <p class="city-region">
+              {{ city.region }}
+              ·
+              {{ city.countryCode }}
             </p>
 
-            <p class="weather-status">
+            <h2 class="city-name">
+              {{ city.name }}
+            </h2>
+
+            <p class="weather-description">
               {{ city.weather.description }}
             </p>
           </div>
-        </section>
 
-        <!-- ========================================
-             상세 정보
-        ========================================= -->
-        <section class="weather-information" aria-labelledby="weather-information-title">
-          <h2 id="weather-information-title">상세 정보</h2>
+          <img v-if="weatherIconUrl" :src="weatherIconUrl" alt="" class="weather-icon" />
+        </div>
 
-          <dl class="detail-list">
-            <!-- 체감 기온 -->
-            <div class="detail-item">
-              <dt>체감 기온</dt>
+        <div class="temperature-summary">
+          <p class="current-temperature">
+            {{ currentTemperature }}
+          </p>
 
-              <dd>
-                <span aria-hidden="true">
-                  {{ formattedFeelsLikeTemperature }}
-                </span>
+          <p class="feels-like">
+            체감 온도:
+            {{ feelsLikeTemperature }}
+          </p>
+        </div>
 
-                <span v-if="feelsLikeDisplayTemperature !== null" class="sr-only">
-                  {{ configStore.unitLabel }}
-                  {{ feelsLikeDisplayTemperature }}도
-                </span>
+        <dl class="detail-grid">
+          <div class="detail-item">
+            <dt>최저 기온</dt>
 
-                <span v-else class="sr-only"> 정보 없음 </span>
-              </dd>
-            </div>
+            <dd>
+              {{ minimumTemperature }}
+            </dd>
+          </div>
 
-            <!-- 최저 기온 -->
-            <div class="detail-item">
-              <dt>최저 기온</dt>
+          <div class="detail-item">
+            <dt>최고 기온</dt>
 
-              <dd>
-                <span aria-hidden="true">
-                  {{ formattedMinimumTemperature }}
-                </span>
+            <dd>
+              {{ maximumTemperature }}
+            </dd>
+          </div>
 
-                <span v-if="minimumDisplayTemperature !== null" class="sr-only">
-                  {{ configStore.unitLabel }}
-                  {{ minimumDisplayTemperature }}도
-                </span>
+          <div class="detail-item">
+            <dt>습도</dt>
 
-                <span v-else class="sr-only"> 정보 없음 </span>
-              </dd>
-            </div>
+            <dd>
+              {{ humidityText }}
+            </dd>
+          </div>
 
-            <!-- 최고 기온 -->
-            <div class="detail-item">
-              <dt>최고 기온</dt>
+          <div class="detail-item">
+            <dt>기압</dt>
 
-              <dd>
-                <span aria-hidden="true">
-                  {{ formattedMaximumTemperature }}
-                </span>
+            <dd>
+              {{ pressureText }}
+            </dd>
+          </div>
 
-                <span v-if="maximumDisplayTemperature !== null" class="sr-only">
-                  {{ configStore.unitLabel }}
-                  {{ maximumDisplayTemperature }}도
-                </span>
+          <div class="detail-item">
+            <dt>풍속</dt>
 
-                <span v-else class="sr-only"> 정보 없음 </span>
-              </dd>
-            </div>
+            <dd>
+              {{ windSpeedText }}
+            </dd>
+          </div>
 
-            <!-- 습도 -->
-            <div class="detail-item">
-              <dt>습도</dt>
+          <div class="detail-item">
+            <dt>가시거리</dt>
 
-              <dd>
-                <template v-if="city.main.humidity !== null">
-                  <span aria-hidden="true"> {{ city.main.humidity }}% </span>
+            <dd>
+              {{ visibilityText }}
+            </dd>
+          </div>
 
-                  <span class="sr-only"> {{ city.main.humidity }}퍼센트 </span>
-                </template>
+          <div class="detail-item">
+            <dt>일출</dt>
 
-                <span v-else> 정보 없음 </span>
-              </dd>
-            </div>
+            <dd>
+              {{ sunriseText }}
+            </dd>
+          </div>
 
-            <!-- 기압 -->
-            <div class="detail-item">
-              <dt>기압</dt>
+          <div class="detail-item">
+            <dt>일몰</dt>
 
-              <dd>
-                <template v-if="city.main.pressure !== null">
-                  {{ city.main.pressure }} hPa
-                </template>
+            <dd>
+              {{ sunsetText }}
+            </dd>
+          </div>
+        </dl>
 
-                <span v-else> 정보 없음 </span>
-              </dd>
-            </div>
+        <div class="detail-actions">
+          <button
+            type="button"
+            class="favorite-button"
+            :aria-pressed="city.favorite"
+            @click="handleToggleFavorite"
+          >
+            {{ city.favorite ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기 추가' }}
+          </button>
 
-            <!-- 풍속 -->
-            <div class="detail-item">
-              <dt>풍속</dt>
+          <button type="button" class="secondary-button" @click="goBack">이전 페이지</button>
+        </div>
 
-              <dd>
-                <template v-if="city.wind.speed !== null">
-                  <span aria-hidden="true"> {{ city.wind.speed }} m/s </span>
-
-                  <span class="sr-only"> 초속 {{ city.wind.speed }}미터 </span>
-                </template>
-
-                <span v-else> 정보 없음 </span>
-              </dd>
-            </div>
-
-            <!-- 돌풍 -->
-            <div class="detail-item">
-              <dt>돌풍</dt>
-
-              <dd>
-                <template v-if="city.wind.gust !== null">
-                  <span aria-hidden="true"> {{ city.wind.gust }} m/s </span>
-
-                  <span class="sr-only"> 초속 {{ city.wind.gust }}미터 </span>
-                </template>
-
-                <span v-else> 정보 없음 </span>
-              </dd>
-            </div>
-
-            <!-- 가시거리 -->
-            <div class="detail-item">
-              <dt>가시거리</dt>
-
-              <dd>
-                <template v-if="visibilityKilometers !== null">
-                  <span aria-hidden="true"> {{ visibilityKilometers }} km </span>
-
-                  <span class="sr-only"> {{ visibilityKilometers }}킬로미터 </span>
-                </template>
-
-                <span v-else> 정보 없음 </span>
-              </dd>
-            </div>
-          </dl>
-        </section>
+        <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {{ favoriteMessage }}
+        </p>
       </article>
 
-      <!-- ========================================
-           도시 정보 없음
-      ========================================= -->
-      <section v-else class="not-found" role="alert" aria-labelledby="city-not-found-title">
-        <h1 id="city-not-found-title">도시 정보를 찾을 수 없습니다</h1>
+      <div v-else class="empty-state">
+        <p>해당 도시의 날씨 정보를 찾을 수 없습니다.</p>
 
-        <p>주소가 올바른지 확인하거나 날씨 홈에서 도시를 다시 선택하세요.</p>
-
-        <RouterLink to="/" class="home-link"> 날씨 홈으로 이동 </RouterLink>
-      </section>
-    </div>
-  </div>
+        <button type="button" class="primary-button" @click="moveToHome">홈으로 돌아가기</button>
+      </div>
+    </BaseDashboardCard>
+  </section>
 </template>
 
 <style scoped>
-/* ========================================
-   전체 페이지
-======================================== */
-
-.detail-page {
-  min-height: calc(100vh - 70px);
-  padding: 44px clamp(24px, 5vw, 80px) 72px;
-
-  background-color: #f5f7fb;
-}
-
-.detail-container {
-  width: min(940px, 100%);
-  margin: 0 auto;
-}
-
-/* ========================================
-   이전 페이지 버튼
-======================================== */
-
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-
-  min-height: 44px;
-  margin-bottom: 22px;
-  padding: 9px 15px;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-
-  background-color: #ffffff;
-  color: #334155;
-
-  font: inherit;
-  font-weight: 800;
-
-  cursor: pointer;
-}
-
-.back-button:hover {
-  background-color: #f8fafc;
-}
-
-/* ========================================
-   상세 카드
-======================================== */
-
-.detail-card {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-
-  padding: 36px;
-
-  border: 1px solid #dbe3ee;
-  border-radius: 22px;
-
-  background-color: #ffffff;
-
-  box-shadow: 0 12px 32px rgb(15 23 42 / 8%);
-}
-
-/* ========================================
-   상세 페이지 제목
-======================================== */
-
-.detail-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.detail-view {
+  display: grid;
   gap: 24px;
+
+  width: 100%;
 }
 
-.detail-heading {
-  min-width: 0;
+.page-header {
+  display: grid;
+  gap: 8px;
 }
 
-.region {
-  margin: 0 0 7px;
-
-  color: #2563eb;
-  font-size: 14px;
-  font-weight: 850;
-}
-
-.detail-header h1 {
+.page-eyebrow,
+.page-title,
+.page-description {
   margin: 0;
-
-  color: #172033;
-  font-size: clamp(29px, 5vw, 41px);
-  line-height: 1.25;
 }
 
-.description {
-  margin: 13px 0 0;
+.page-eyebrow {
+  color: #2563eb;
 
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.page-title {
+  color: #0f172a;
+
+  font-size: clamp(28px, 4vw, 42px);
+}
+
+.page-description {
   color: #64748b;
+
   line-height: 1.7;
 }
 
-.unit-information {
-  margin: 10px 0 0;
+.loading-message {
+  margin: 0;
+
+  padding: 14px 16px;
+
+  border-radius: 10px;
+
+  background-color: #eff6ff;
+  color: #1d4ed8;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.error-box {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  padding: 14px 16px;
+
+  border-radius: 10px;
+
+  background-color: #fef2f2;
+  color: #b91c1c;
+}
+
+.error-box p {
+  margin: 0;
+}
+
+.weather-detail {
+  display: grid;
+  gap: 24px;
+}
+
+.detail-summary {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 24px;
+}
+
+.city-region,
+.city-name,
+.weather-description {
+  margin: 0;
+}
+
+.city-region {
+  margin-bottom: 6px;
 
   color: #64748b;
+
   font-size: 14px;
+  font-weight: 700;
 }
 
-.unit-information strong {
-  color: #1d4ed8;
+.city-name {
+  color: #0f172a;
+
+  font-size: clamp(28px, 5vw, 44px);
 }
 
-/* ========================================
-   즐겨찾기
-======================================== */
+.weather-description {
+  margin-top: 8px;
 
-.favorite-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-
-  flex-shrink: 0;
-
-  min-height: 46px;
-  padding: 10px 15px;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 11px;
-
-  background-color: #ffffff;
   color: #475569;
 
-  font: inherit;
-  font-weight: 850;
-
-  cursor: pointer;
-}
-
-.favorite-button:hover,
-.favorite-button.active {
-  border-color: #f59e0b;
-  background-color: #fffbeb;
-  color: #92400e;
-}
-
-.favorite-icon {
-  font-size: 21px;
-  line-height: 1;
-}
-
-/* ========================================
-   현재 날씨
-======================================== */
-
-.current-weather {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-
-  padding: 34px;
-
-  border: 1px solid #dbeafe;
-  border-radius: 18px;
-
-  background: linear-gradient(135deg, #eff6ff 0%, #e8f1ff 100%);
-}
-
-.weather-icon,
-.weather-icon-placeholder {
-  flex-shrink: 0;
-
-  width: 112px;
-  height: 112px;
+  font-size: 17px;
 }
 
 .weather-icon {
+  width: 120px;
+  height: 120px;
+
   object-fit: contain;
 }
 
-.temperature {
+.temperature-summary {
+  padding: 22px;
+
+  border-radius: 14px;
+
+  background-color: #eff6ff;
+}
+
+.current-temperature,
+.feels-like {
   margin: 0;
+}
 
-  color: #172033;
-  font-size: clamp(48px, 8vw, 68px);
+.current-temperature {
+  color: #1d4ed8;
+
+  font-size: clamp(42px, 8vw, 64px);
   font-weight: 900;
-  line-height: 1;
 }
 
-.weather-status {
-  margin: 10px 0 0;
+.feels-like {
+  margin-top: 5px;
 
-  color: #334155;
-  font-size: 19px;
-  font-weight: 850;
+  color: #475569;
+
+  font-size: 15px;
+  font-weight: 700;
 }
 
-/* ========================================
-   상세 정보
-======================================== */
-
-.weather-information h2 {
-  margin: 0 0 18px;
-
-  color: #172033;
-  font-size: 23px;
-}
-
-.detail-list {
+.detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
   gap: 14px;
 
   margin: 0;
 }
 
 .detail-item {
-  padding: 20px;
+  padding: 16px;
 
-  border: 1px solid #dbe3ee;
-  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 
   background-color: #f8fafc;
 }
 
 .detail-item dt {
   color: #64748b;
+
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .detail-item dd {
   margin: 8px 0 0;
 
-  color: #172033;
-  font-size: 19px;
+  color: #0f172a;
+
+  font-size: 18px;
   font-weight: 900;
 }
 
-/* ========================================
-   도시 없음
-======================================== */
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
 
-.not-found {
-  padding: 48px 24px;
-
-  border: 1px solid #dbe3ee;
-  border-radius: 18px;
-
-  background-color: #ffffff;
-
-  text-align: center;
+  gap: 10px;
 }
 
-.not-found h1 {
-  margin: 0;
-
-  color: #172033;
-}
-
-.not-found p {
-  margin: 13px 0 0;
-
-  color: #64748b;
-  line-height: 1.7;
-}
-
-.home-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
+.primary-button,
+.secondary-button,
+.favorite-button {
   min-height: 44px;
-  margin-top: 22px;
-  padding: 9px 17px;
+
+  padding: 10px 15px;
 
   border-radius: 9px;
 
-  background-color: #2563eb;
-  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
 
-  font-weight: 850;
-  text-decoration: none;
+  cursor: pointer;
 }
 
-.home-link:hover {
+.primary-button {
+  border: 1px solid #2563eb;
+
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.primary-button:hover {
   background-color: #1d4ed8;
 }
 
-/* ========================================
-   태블릿 및 모바일
-======================================== */
+.secondary-button {
+  border: 1px solid #cbd5e1;
 
-@media (max-width: 650px) {
-  .detail-page {
-    padding: 30px 16px 48px;
-  }
+  background-color: #ffffff;
+  color: #334155;
+}
 
-  .detail-card {
-    gap: 26px;
-    padding: 24px;
-  }
+.secondary-button:hover {
+  border-color: #2563eb;
 
-  .detail-header {
-    flex-direction: column;
-  }
+  color: #1d4ed8;
+}
 
-  .favorite-button {
-    width: 100%;
-  }
+.favorite-button {
+  border: 1px solid #f59e0b;
 
-  .current-weather {
-    gap: 20px;
-    padding: 26px;
-  }
+  background-color: #fffbeb;
+  color: #b45309;
+}
 
-  .weather-icon,
-  .weather-icon-placeholder {
-    width: 88px;
-    height: 88px;
-  }
+.favorite-button:hover {
+  background-color: #fef3c7;
+}
 
-  .detail-list {
-    grid-template-columns: 1fr;
+.empty-state {
+  display: grid;
+
+  justify-items: start;
+
+  gap: 14px;
+
+  padding: 30px 0;
+
+  color: #64748b;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 420px) {
-  .current-weather {
-    align-items: flex-start;
+@media (max-width: 600px) {
+  .error-box {
+    align-items: stretch;
     flex-direction: column;
   }
 
-  .back-button {
+  .detail-summary {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+  }
+
+  .weather-icon {
+    width: 100px;
+    height: 100px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-actions {
+    flex-direction: column;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .favorite-button {
     width: 100%;
   }
 }
