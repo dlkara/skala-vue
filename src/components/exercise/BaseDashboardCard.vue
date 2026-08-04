@@ -13,6 +13,10 @@ defineProps({
       {{ title }}
     </h3>
 
+    <!--
+      부모 컴포넌트에서 전달한 검색창,
+      필터, 카드 목록 등이 이 위치에 출력됩니다.
+    -->
     <div class="dashboard-content">
       <slot></slot>
     </div>
@@ -26,7 +30,6 @@ defineProps({
   border: 1px solid #d6deea;
   border-radius: 18px;
   background-color: #ffffff;
-  color: #1f2937;
   box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
 }
 

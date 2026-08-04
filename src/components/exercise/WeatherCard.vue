@@ -1,15 +1,18 @@
 <script setup>
 const props = defineProps({
+  // 도시 날씨 객체
   city: {
     type: Object,
     required: true,
   },
 
+  // 현재 선택된 카드인지 여부
   selected: {
     type: Boolean,
     default: false,
   },
 
+  // 현재 검색어와 일치하는 카드인지 여부
   searched: {
     type: Boolean,
     default: false,
@@ -18,77 +21,96 @@ const props = defineProps({
 
 const emit = defineEmits(['select-card', 'click-detail', 'toggle-favorite'])
 
+/**
+ * 카드 전체를 클릭했을 때 실행됩니다.
+ */
 const selectCard = () => {
   emit('select-card', props.city)
 }
 
+/**
+ * 상세정보 버튼을 클릭했을 때 실행됩니다.
+ */
 const clickDetail = () => {
   emit('click-detail', props.city)
 }
 
+/**
+ * 즐겨찾기 버튼을 클릭했을 때 실행됩니다.
+ */
 const clickFavorite = () => {
   emit('toggle-favorite', props.city)
 }
 
-const getWeatherAdvice = () => {
-  if (props.city.status === '비' || props.city.status === '소나기') {
-    return '우산을 챙기고 미끄러운 길을 조심하세요.'
+/**
+ * OpenWeather 아이콘 코드로
+ * 날씨 이미지 URL을 생성합니다.
+ *
+ * 현재는 고정 iconCode를 사용하지만,
+ * 향후 API 응답의 icon 값을 그대로 사용할 수 있습니다.
+ */
+const getWeatherIconUrl = (iconCode) => {
+  if (!iconCode) {
+    return ''
   }
 
-  if (props.city.status === '폭염') {
-    return '야외 활동을 줄이고 수분을 충분히 섭취하세요.'
-  }
-
-  if (props.city.status === '강풍') {
-    return '강한 바람에 날릴 수 있는 물건을 주의하세요.'
-  }
-
-  if (props.city.status === '맑음' && props.city.temp >= 25) {
-    return '자외선 차단제를 준비하고 물을 자주 마시세요.'
-  }
-
-  return '가벼운 외출이나 산책을 하기 좋은 날씨입니다.'
+  return `https://openweathermap.org/img/wn/${iconCode}@2x.png`
 }
 </script>
 
 <template>
   <article
     class="weather-card"
-    :class="[
-      city.temp >= 25 ? 'hot' : 'cool',
-      {
-        selected,
-        searched,
-      },
-    ]"
+    :class="{
+      selected,
+      searched,
+    }"
     @click="selectCard"
   >
-    <h4>
-      {{ city.icon }}
-      {{ city.name }}
-      ({{ city.status }})
-    </h4>
+    <div class="card-header">
+      <div class="city-heading">
+        <img
+          v-if="city.iconCode"
+          :src="getWeatherIconUrl(city.iconCode)"
+          :alt="`${city.description} 날씨 아이콘`"
+          class="weather-icon"
+        />
 
-    <p>현재 기온: {{ city.temp }}℃</p>
+        <div>
+          <h4>{{ city.name }}</h4>
 
-    <p>습도: {{ city.humidity }}%</p>
+          <!-- 도시가 소속된 지역을 표시 -->
+          <p class="region-name">
+            {{ city.region }}
+          </p>
+        </div>
+      </div>
 
-    <p>풍속: {{ city.wind }}m/s</p>
-
-    <p v-if="city.temp >= 25">🔥 더움 (25℃ 이상)</p>
-
-    <p v-else>❄️ 선선함 (25℃ 미만)</p>
-
-    <div class="weather-message">
-      <p>
-        {{ getWeatherAdvice() }}
-      </p>
+      <span class="weather-status">
+        {{ city.status }}
+      </span>
     </div>
 
-    <p v-if="searched" class="searched-message">🔍 현재 검색 조건과 일치하는 도시입니다.</p>
+    <p class="temperature">
+      현재 기온
+
+      <strong> {{ city.temp }}℃ </strong>
+    </p>
+
+    <!-- 과제 조건: 25℃를 기준으로 상태 구분 -->
+    <span v-if="city.temp >= 25" class="temperature-badge hot-badge"> 더움 </span>
+
+    <span v-else class="temperature-badge cool-badge"> 선선함 </span>
+
+    <!-- 검색어가 입력된 경우에만 검색 결과 안내 표시 -->
+    <p v-if="searched" class="searched-message">현재 검색 조건과 일치하는 도시입니다.</p>
 
     <div class="weather-actions">
-      <button type="button" class="detail-button" @click.stop="clickDetail">상세보기</button>
+      <!--
+        .stop을 사용해 버튼 클릭 시
+        카드 전체 클릭 이벤트가 함께 실행되지 않게 합니다.
+      -->
+      <button type="button" class="detail-button" @click.stop="clickDetail">상세정보</button>
 
       <button type="button" class="favorite-button" @click.stop="clickFavorite">
         {{ city.favorite ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기' }}
@@ -100,13 +122,14 @@ const getWeatherAdvice = () => {
 <style scoped>
 .weather-card {
   min-width: 0;
-  padding: 24px;
+  padding: 22px;
   border: 1px solid #dbe3ee;
   border-radius: 16px;
   background-color: #ffffff;
   color: #1f2937;
   cursor: pointer;
   box-shadow: 0 6px 18px rgb(15 23 42 / 8%);
+
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
@@ -120,72 +143,124 @@ const getWeatherAdvice = () => {
   box-shadow: 0 12px 28px rgb(15 23 42 / 12%);
 }
 
-.weather-card h4 {
-  margin: 0 0 16px;
+/* 카드 헤더 */
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.city-heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.weather-icon {
+  flex-shrink: 0;
+  width: 62px;
+  height: 62px;
+  margin-left: -10px;
+  object-fit: contain;
+}
+
+.city-heading h4 {
+  margin: 0;
   color: #172033;
   font-size: 22px;
   line-height: 1.4;
 }
 
-.weather-card p {
-  margin: 9px 0;
-  line-height: 1.55;
+.region-name {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-/* 기온에 따른 카드 구분 */
-
-.weather-card.hot {
-  border-left: 7px solid #ef4444;
+.weather-status {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background-color: #f1f5f9;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.weather-card.cool {
-  border-left: 7px solid #3b82f6;
+/* 현재 기온 */
+
+.temperature {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 18px 0 12px;
+  color: #475569;
+  font-size: 16px;
 }
 
-/* 선택된 카드 */
+.temperature strong {
+  color: #172033;
+  font-size: 25px;
+}
+
+/* 더움 / 선선함 상태 배지 */
+
+.temperature-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px 13px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.hot-badge {
+  border-color: #fecaca;
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.cool-badge {
+  border-color: #bfdbfe;
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* 선택 카드와 검색 카드 표시 */
 
 .weather-card.selected {
   outline: 3px solid #22c55e;
   background-color: #f0fdf4;
 }
 
-/* 검색 결과 카드 */
-
 .weather-card.searched {
-  background-color: #eff6ff;
+  border-color: #60a5fa;
 }
 
 .weather-card.selected.searched {
   background-color: #ecfdf5;
 }
 
-/* 날씨 안내 문구 */
-
-.weather-message {
-  min-height: 82px;
-  margin-top: 16px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background-color: #f8fafc;
-  color: #334155;
-}
-
-.weather-message p {
-  margin: 0;
-}
-
 .searched-message {
+  margin: 15px 0 0;
   color: #1d4ed8;
+  font-size: 13px;
   font-weight: 700;
 }
 
-/* 버튼 */
+/* 하단 버튼 */
 
 .weather-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 20px;
 }
 
 .weather-actions button {
@@ -199,7 +274,7 @@ const getWeatherAdvice = () => {
 }
 
 .detail-button {
-  border: 1px solid #2563eb;
+  border: 1px solid #334155;
   background-color: #334155;
   color: #ffffff;
 }

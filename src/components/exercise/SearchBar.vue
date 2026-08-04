@@ -8,6 +8,10 @@ defineProps({
 
 const emit = defineEmits(['update-query'])
 
+/**
+ * 입력값이 변경될 때마다
+ * 새로운 검색어를 부모 컴포넌트에 전달합니다.
+ */
 const handleInput = (event) => {
   emit('update-query', event.target.value)
 }
@@ -15,19 +19,17 @@ const handleInput = (event) => {
 
 <template>
   <div class="search-panel">
-    <div class="search-area">
-      <label for="city-search" class="search-label"> 검색할 도시 </label>
+    <label for="city-search" class="search-label"> 검색할 도시 </label>
 
-      <input
-        id="city-search"
-        :value="searchQuery"
-        type="text"
-        class="search-input"
-        placeholder="도시 이름 또는 초성 입력 (예: 대전, ㄷㅈ)"
-        @input="handleInput"
-        @compositionupdate="handleInput"
-      />
-    </div>
+    <input
+      id="city-search"
+      :value="searchQuery"
+      type="text"
+      class="search-input"
+      placeholder="도시명 또는 초성 입력 (예: 서울, ㅅㅇ)"
+      autocomplete="off"
+      @input="handleInput"
+    />
   </div>
 </template>
 
@@ -39,13 +41,9 @@ const handleInput = (event) => {
   background-color: #f8fafc;
 }
 
-.search-area {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
 .search-label {
+  display: block;
+  margin-bottom: 9px;
   color: #334155;
   font-weight: 700;
 }
@@ -60,9 +58,6 @@ const handleInput = (event) => {
   font: inherit;
   outline: none;
   box-sizing: border-box;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
 }
 
 .search-input::placeholder {
