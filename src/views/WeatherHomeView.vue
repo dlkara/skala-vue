@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { storeToRefs } from 'pinia'
 
@@ -8,8 +8,6 @@ import { useRouter } from 'vue-router'
 import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
 import SearchBar from '@/components/exercise/SearchBar.vue'
 import WeatherCard from '@/components/exercise/WeatherCard.vue'
-
-import { regionLabels } from '@/data/weatherData'
 
 import { useWeatherStore } from '@/stores/weatherStore'
 
@@ -25,64 +23,54 @@ const weatherStore = useWeatherStore()
 
 const {
   weatherList,
+  searchResults,
+
   isLoading,
   isSearching,
+
   errorMessage,
   searchErrorMessage,
+
   formattedLastUpdatedAt,
 } = storeToRefs(weatherStore)
 
 // ========================================
-// 검색 및 필터 상태
+// 화면 상태
 // ========================================
 
-/**
- * 하나의 검색어로 다음 두 기능을 처리합니다.
- *
- * 1. 입력 중:
- *    현재 등록된 도시 카드 필터링
- *
- * 2. Enter 또는 검색 버튼:
- *    등록되지 않은 도시라면 API 검색 후 카드 추가
- */
 const searchQuery = ref('')
 
-/**
- * 현재 선택된 지역 필터입니다.
- */
 const selectedRegion = ref('all')
 
-/**
- * 사용자가 선택한 도시 ID입니다.
- */
 const selectedCityId = ref(null)
 
-/**
- * 즐겨찾기 변경 결과를
- * 스크린리더에 전달할 메시지입니다.
- */
+const actionMessage = ref('')
+
 const favoriteMessage = ref('')
 
 /**
- * API 검색으로 도시를 추가하거나
- * 도시를 삭제한 결과 메시지입니다.
+ * 자동 API 검색용 setTimeout ID입니다.
  */
-const locationMessage = ref('')
+let searchTimer = null
 
 // ========================================
-// 지역 필터 목록
+// 지역 필터
 // ========================================
 
-/**
- * 현재 날씨 카드에 실제로 존재하는
- * 지역 코드만 select에 표시합니다.
- */
+const regionLabels = {
+  all: '전체 지역',
+  capital: '수도권',
+  chungcheong: '충청권',
+  jeju: '제주권',
+  searched: '검색 추가 지역',
+}
+
 const regionOptions = computed(() => {
   const usedRegionCodes = new Set(weatherList.value.map((city) => city.regionCode))
 
   return Object.entries(regionLabels)
-    .filter(([regionCode]) => {
-      return regionCode === 'all' || usedRegionCodes.has(regionCode)
+    .filter(([value]) => {
+      return value === 'all' || usedRegionCodes.has(value)
     })
     .map(([value, label]) => ({
       value,
@@ -94,230 +82,210 @@ const regionOptions = computed(() => {
 // 검색어 분석
 // ========================================
 
-/**
- * 검색어를 앞뒤 공백 제거 후
- * 소문자로 변환합니다.
- */
 const normalizedSearchQuery = computed(() => {
   return searchQuery.value.trim().toLowerCase()
 })
 
-/**
- * 검색어가 한글 초성으로만 구성됐는지 확인합니다.
- *
- * 초성 검색은 기존 카드 필터에만 사용하며
- * OpenWeather API 요청에는 사용하지 않습니다.
- */
 const isChosungQuery = computed(() => {
   const query = searchQuery.value.trim()
 
-  if (!query) {
-    return false
-  }
-
-  return /^[ㄱ-ㅎ]+$/.test(query)
+  return query.length > 0 && /^[ㄱ-ㅎ]+$/.test(query)
 })
 
 /**
- * 지역 필터를 제외하고,
- * 현재 등록된 도시 중 검색어와 일치하는 도시가
- * 있는지 확인합니다.
- *
- * API 검색 여부를 결정할 때 사용합니다.
+ * 대시보드에 이미 등록된 카드의
+ * 검색 및 지역 필터 결과입니다.
  */
-const matchingRegisteredCities = computed(() => {
-  const query = normalizedSearchQuery.value
-
-  if (!query) {
-    return []
-  }
-
-  return weatherList.value.filter((city) => {
-    const cityName = city.name?.trim().toLowerCase() ?? ''
-
-    const apiName = city.apiName?.trim().toLowerCase() ?? ''
-
-    const cityChosung = getChosung(city.name ?? '')
-
-    return cityName.includes(query) || apiName.includes(query) || cityChosung.includes(query)
-  })
-})
-
-// ========================================
-// 카드 검색 및 필터 결과
-// ========================================
-
 const filteredWeatherList = computed(() => {
   const query = normalizedSearchQuery.value
 
   return weatherList.value.filter((city) => {
-    /**
-     * 지역 필터를 확인합니다.
-     */
     const matchesRegion = selectedRegion.value === 'all' || city.regionCode === selectedRegion.value
 
     if (!matchesRegion) {
       return false
     }
 
-    /**
-     * 검색어가 없으면 지역 필터 결과를
-     * 그대로 표시합니다.
-     */
     if (!query) {
       return true
     }
 
-    const cityName = city.name?.trim().toLowerCase() ?? ''
+    const cityName = city.name?.toLowerCase() || ''
 
-    const apiName = city.apiName?.trim().toLowerCase() ?? ''
+    const apiName = city.apiName?.toLowerCase() || ''
 
-    const cityChosung = getChosung(city.name ?? '')
+    const state = city.state?.toLowerCase() || ''
 
-    return cityName.includes(query) || apiName.includes(query) || cityChosung.includes(query)
+    const cityChosung = getChosung(city.name || '')
+
+    return (
+      cityName.includes(query) ||
+      apiName.includes(query) ||
+      state.includes(query) ||
+      cityChosung.includes(query)
+    )
   })
 })
 
-/**
- * 화면과 스크린리더에 전달할
- * 검색 결과 개수입니다.
- */
-const resultMessage = computed(() => {
-  return `${filteredWeatherList.value.length}개의 ` + `도시가 표시되었습니다.`
-})
-
-/**
- * 현재 선택한 도시 객체입니다.
- */
 const selectedCity = computed(() => {
   if (!selectedCityId.value) {
     return null
   }
 
-  return weatherList.value.find((city) => city.id === selectedCityId.value)
+  return weatherList.value.find((city) => {
+    return city.id === selectedCityId.value
+  })
+})
+
+const resultMessage = computed(() => {
+  return `${filteredWeatherList.value.length}개의 ` + '도시가 표시되었습니다.'
+})
+
+const shouldShowSearchResults = computed(() => {
+  return searchQuery.value.trim().length > 0 && !isChosungQuery.value
 })
 
 // ========================================
-// 검색 이벤트
+// 검색 결과 표시 함수
 // ========================================
 
 /**
- * SearchBar가 전달한 입력값을 저장합니다.
- *
- * 값을 입력하는 동안에는
- * API를 호출하지 않고 카드 필터만 적용됩니다.
+ * 행정구역 표시값을 반환합니다.
  */
-const handleSearchQuery = (newQuery) => {
-  searchQuery.value = newQuery
+const getAdministrativeArea = (result) => {
+  if (result.administrativeArea) {
+    return result.administrativeArea
+  }
 
-  /**
-   * 새 검색을 시작하면
-   * 이전 성공 메시지와 API 오류를 지웁니다.
-   */
-  locationMessage.value = ''
-  weatherStore.searchErrorMessage = ''
+  if (result.state && result.countryCode) {
+    return `${result.state} · ` + result.countryCode
+  }
+
+  if (result.state) {
+    return result.state
+  }
+
+  if (result.countryCode) {
+    return `행정구역 정보 없음 · ` + result.countryCode
+  }
+
+  return '행정구역 정보 없음'
 }
 
 /**
- * Enter 또는 검색 버튼을 눌렀을 때 실행됩니다.
+ * 좌표를 소수점 넷째 자리까지 표시합니다.
  */
-const handleSearch = async () => {
-  const searchText = searchQuery.value.trim()
+const formatCoordinate = (coordinate) => {
+  const numberCoordinate = Number(coordinate)
 
-  locationMessage.value = ''
-  weatherStore.searchErrorMessage = ''
+  if (Number.isNaN(numberCoordinate)) {
+    return '-'
+  }
 
-  /**
-   * 검색어가 없으면 API를 호출하지 않습니다.
-   */
-  if (!searchText) {
-    weatherStore.searchErrorMessage = '검색할 도시명을 입력하세요.'
+  return numberCoordinate.toFixed(4)
+}
 
+// ========================================
+// 자동 API 검색
+// ========================================
+
+const clearSearchTimer = () => {
+  if (!searchTimer) {
     return
   }
 
-  /**
-   * 현재 등록된 도시가 검색되면
-   * API를 호출하지 않고 해당 카드만 표시합니다.
-   */
-  if (matchingRegisteredCities.value.length > 0) {
+  clearTimeout(searchTimer)
+
+  searchTimer = null
+}
+
+const handleSearchQuery = (newQuery) => {
+  searchQuery.value = newQuery
+
+  actionMessage.value = ''
+}
+
+const clearSearch = () => {
+  clearSearchTimer()
+
+  searchQuery.value = ''
+  selectedCityId.value = null
+
+  actionMessage.value = ''
+
+  weatherStore.clearSearchResults()
+}
+
+/**
+ * 검색어가 변경되면 600ms 후
+ * OpenWeather API를 자동 호출합니다.
+ */
+watch(searchQuery, (newQuery) => {
+  clearSearchTimer()
+
+  const normalizedQuery = newQuery.trim()
+
+  weatherStore.clearSearchResults()
+
+  if (!normalizedQuery) {
+    return
+  }
+
+  if (/^[ㄱ-ㅎ]+$/.test(normalizedQuery)) {
+    return
+  }
+
+  if (normalizedQuery.length < 2) {
+    return
+  }
+
+  searchTimer = setTimeout(() => {
+    weatherStore.searchLocation(normalizedQuery)
+  }, 600)
+})
+
+// ========================================
+// 검색 결과 추가
+// ========================================
+
+const handleAddLocation = async (candidate) => {
+  actionMessage.value = ''
+
+  const result = await weatherStore.addLocation(candidate)
+
+  actionMessage.value = result.message
+
+  if (result.success) {
     selectedRegion.value = 'all'
 
-    /**
-     * 검색 결과가 하나라면
-     * 해당 도시를 선택 상태로 만듭니다.
-     */
-    if (matchingRegisteredCities.value.length === 1) {
-      selectedCityId.value = matchingRegisteredCities.value[0].id
-    }
-
-    locationMessage.value =
-      `${matchingRegisteredCities.value.length}개의 ` + `등록된 도시를 찾았습니다.`
-
-    return
+    selectedCityId.value = candidate.id
   }
-
-  /**
-   * 초성은 OpenWeather에서 정상적인 지역명으로
-   * 검색할 수 없으므로 API를 호출하지 않습니다.
-   */
-  if (isChosungQuery.value) {
-    weatherStore.searchErrorMessage = `'${searchText}'에 해당하는 등록된 도시가 없습니다.`
-
-    return
-  }
-
-  /**
-   * 등록된 도시가 없으면
-   * OpenWeather API에서 지역을 검색합니다.
-   */
-  const addedWeather = await weatherStore.searchAndAddLocation(searchText)
-
-  if (!addedWeather) {
-    return
-  }
-
-  /**
-   * 새 카드가 바로 보이도록
-   * 지역 필터를 전체로 변경합니다.
-   *
-   * 검색어는 추가한 도시 이름으로 변경해
-   * 새 카드만 표시합니다.
-   */
-  selectedRegion.value = 'all'
-  searchQuery.value = addedWeather.name
-  selectedCityId.value = addedWeather.id
-
-  locationMessage.value = `${addedWeather.name} 날씨 카드를 추가했습니다.`
 }
 
 // ========================================
 // 카드 이벤트
 // ========================================
 
-/**
- * 날씨 카드를 선택합니다.
- */
 const handleSelectCity = (city) => {
   selectedCityId.value = city.id
 }
 
-/**
- * 도시 상세 페이지로 이동합니다.
- */
-const moveToDetail = (city) => {
+const moveToDetail = (cityId) => {
+  if (!cityId) {
+    console.error('상세 페이지 이동 실패: 도시 ID가 없습니다.')
+
+    return
+  }
+
   router.push({
     name: 'weather-detail',
 
     params: {
-      cityId: city.id,
+      cityId,
     },
   })
 }
 
-/**
- * 즐겨찾기 상태를 변경합니다.
- */
 const handleToggleFavorite = (city) => {
   const willBeFavorite = !city.favorite
 
@@ -328,97 +296,50 @@ const handleToggleFavorite = (city) => {
     : `${city.name}을 즐겨찾기에서 해제했습니다.`
 }
 
-/**
- * 검색어와 지역 필터를 초기화합니다.
- */
-const resetFilters = () => {
-  searchQuery.value = ''
-  selectedRegion.value = 'all'
-  selectedCityId.value = null
-
-  locationMessage.value = ''
-  weatherStore.searchErrorMessage = ''
-}
-
-/**
- * 검색으로 추가한 지역을 삭제합니다.
- */
 const handleRemoveLocation = (city) => {
-  weatherStore.removeAddedLocation(city.id)
+  const confirmed = window.confirm(`${city.name}을 대시보드에서 삭제하시겠습니까?`)
+
+  if (!confirmed) {
+    return
+  }
+
+  const result = weatherStore.removeLocation(city.id)
+
+  actionMessage.value = result.message
 
   if (selectedCityId.value === city.id) {
     selectedCityId.value = null
   }
 
-  /**
-   * 삭제한 도시 이름이 검색창에 남아 있으면
-   * 검색 결과가 0개가 되므로 검색어를 초기화합니다.
-   */
-  searchQuery.value = ''
+  const regionStillExists = weatherList.value.some((weatherCity) => {
+    return weatherCity.regionCode === selectedRegion.value
+  })
 
-  /**
-   * 검색 추가 지역이 더 이상 없는데
-   * 해당 필터가 선택되어 있다면
-   * 전체 지역으로 돌립니다.
-   */
-  const searchedCityExists = weatherList.value.some(
-    (weatherCity) => weatherCity.regionCode === 'searched',
-  )
-
-  if (selectedRegion.value === 'searched' && !searchedCityExists) {
+  if (selectedRegion.value !== 'all' && !regionStillExists) {
     selectedRegion.value = 'all'
   }
+}
 
-  locationMessage.value = `${city.name} 날씨 카드를 삭제했습니다.`
+const resetFilters = () => {
+  clearSearch()
+
+  selectedRegion.value = 'all'
+
+  selectedCityId.value = null
+
+  actionMessage.value = ''
 }
 
 // ========================================
-// Watch
+// 생명주기
 // ========================================
 
-/**
- * 지역 필터가 변경되면
- * 기존 카드 선택을 해제합니다.
- *
- * 검색어 변화는 handleSearchQuery에서 처리하므로
- * selectedCity를 자동으로 지우지 않습니다.
- */
-watch(selectedRegion, () => {
-  selectedCityId.value = null
-})
-
-/**
- * 선택된 도시 변경을 확인하기 위한
- * 수업용 watch 예시입니다.
- */
-watch(selectedCityId, (newCityId, oldCityId) => {
-  console.log('[watch 감지] 선택 도시 ID 변경:', oldCityId, '→', newCityId)
-})
-
-/**
- * 검색어와 검색 결과가 변경될 때마다
- * 자동으로 실행됩니다.
- */
-watchEffect(() => {
-  console.log(
-    `[watchEffect 자동 호출] 현재 검색어 ` +
-      `"${searchQuery.value}"에 매칭되는 ` +
-      `${filteredWeatherList.value.length}개의 ` +
-      `도시를 표시합니다.`,
-  )
-})
-
-// ========================================
-// 최초 API 요청
-// ========================================
-
-/**
- * 홈 화면 최초 진입 시
- * 기본 지역과 저장된 추가 지역의
- * 실시간 날씨를 불러옵니다.
- */
 onMounted(() => {
   weatherStore.fetchAllWeather()
+})
+
+onBeforeUnmount(() => {
+  clearSearchTimer()
 })
 </script>
 
@@ -434,27 +355,27 @@ onMounted(() => {
       <h1 class="page-title">실시간 날씨 대시보드</h1>
 
       <p class="page-description">
-        지역별 현재 날씨를 확인하고 원하는 지역의 날씨 카드를 추가할 수 있습니다.
+        지역을 자동 검색하고 원하는 결과만 대시보드에 추가할 수 있습니다.
       </p>
     </header>
 
     <!-- ======================================
-         통합 검색 및 지역 필터
+         검색 및 지역 필터
     ======================================= -->
 
-    <BaseDashboardCard title="도시 검색 및 지역 추가">
+    <BaseDashboardCard title="도시 검색 및 지역 필터">
       <div class="filter-layout">
         <div class="search-area">
           <SearchBar
             :query="searchQuery"
             :is-searching="isSearching"
             @update-query="handleSearchQuery"
-            @search="handleSearch"
+            @clear="clearSearch"
           />
         </div>
 
         <div class="region-area">
-          <label for="region-filter" class="form-label"> 지역 </label>
+          <label for="region-filter" class="form-label"> 대시보드 지역 필터 </label>
 
           <select id="region-filter" v-model="selectedRegion" class="region-select">
             <option v-for="option in regionOptions" :key="option.value" :value="option.value">
@@ -464,27 +385,115 @@ onMounted(() => {
         </div>
 
         <button type="button" class="secondary-button reset-button" @click="resetFilters">
-          검색 초기화
+          검색 및 필터 초기화
         </button>
       </div>
+
+      <p v-if="searchQuery.trim().length === 1 && !isChosungQuery" class="input-guide">
+        API 자동 검색은 두 글자 이상 입력하면 시작됩니다.
+      </p>
+
+      <p v-if="isChosungQuery" class="input-guide">
+        초성 검색은 현재 대시보드 카드에만 적용됩니다.
+      </p>
 
       <p v-if="searchErrorMessage" class="message message-error" role="alert">
         {{ searchErrorMessage }}
       </p>
 
-      <p
-        v-if="locationMessage"
-        class="message message-success"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        {{ locationMessage }}
+      <p v-if="actionMessage" class="message message-success" role="status" aria-live="polite">
+        {{ actionMessage }}
       </p>
+
+      <!-- ==================================
+           자동 API 검색 결과
+      =================================== -->
+
+      <section
+        v-if="shouldShowSearchResults"
+        class="api-search-section"
+        aria-labelledby="
+          api-search-result-title
+        "
+      >
+        <div class="search-result-heading">
+          <div>
+            <h2
+              id="
+                api-search-result-title
+              "
+            >
+              지역 검색 결과
+            </h2>
+
+            <p>행정구역과 좌표를 확인한 후 추가 버튼을 눌러주세요.</p>
+          </div>
+
+          <span v-if="searchResults.length > 0" class="result-count">
+            {{ searchResults.length }}개
+          </span>
+        </div>
+
+        <div v-if="searchResults.length > 0" class="api-result-list">
+          <article v-for="result in searchResults" :key="result.id" class="api-result-item">
+            <div class="api-result-main">
+              <img
+                v-if="result.weather?.icon"
+                :src="`https://openweathermap.org/img/wn/${result.weather.icon}@2x.png`"
+                alt=""
+                class="result-weather-icon"
+              />
+
+              <div class="result-location">
+                <h3>
+                  {{ result.name }}
+                </h3>
+
+                <!-- 행정구역 -->
+                <p class="result-administrative-area">
+                  {{ getAdministrativeArea(result) }}
+                </p>
+
+                <!-- 좌표 -->
+                <p class="result-coordinate">
+                  위도
+                  {{ formatCoordinate(result.coord?.lat) }}
+
+                  <span aria-hidden="true"> · </span>
+
+                  경도
+                  {{ formatCoordinate(result.coord?.lon) }}
+                </p>
+
+                <p class="result-description">
+                  {{ result.weather?.description || '날씨 정보 없음' }}
+                </p>
+              </div>
+            </div>
+
+            <div class="api-result-actions">
+              <p class="result-temperature">{{ Math.round(result.main?.temp) }}℃</p>
+
+              <button
+                type="button"
+                class="add-location-button"
+                :disabled="result.isAdded"
+                @click="handleAddLocation(result)"
+              >
+                {{ result.isAdded ? '추가됨' : '대시보드에 추가' }}
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <p v-else-if="!isSearching && !searchErrorMessage" class="waiting-message">
+          검색 결과를 기다리고 있습니다.
+        </p>
+      </section>
     </BaseDashboardCard>
 
     <!-- ======================================
-         현재 날씨 카드
+         대시보드 날씨 카드
     ======================================= -->
 
     <BaseDashboardCard title="현재 날씨">
@@ -524,40 +533,34 @@ onMounted(() => {
         </div>
       </div>
 
-      <p class="result-status" role="status" aria-live="polite" aria-atomic="true">
+      <p class="result-status" role="status" aria-live="polite">
         {{ resultMessage }}
       </p>
 
       <div v-if="filteredWeatherList.length > 0" class="weather-grid">
-        <div v-for="city in filteredWeatherList" :key="city.id" class="weather-card-item">
-          <WeatherCard
-            :city="city"
-            :selected="selectedCityId === city.id"
-            @select="handleSelectCity"
-            @click-detail="moveToDetail"
-            @toggle-favorite="handleToggleFavorite"
-          />
-
-          <button
-            v-if="city.addedByUser"
-            type="button"
-            class="remove-location-button"
-            @click="handleRemoveLocation(city)"
-          >
-            대시보드에서 삭제
-          </button>
-        </div>
+        <WeatherCard
+          v-for="city in filteredWeatherList"
+          :key="city.id"
+          :city="city"
+          :selected="selectedCityId === city.id"
+          @select="handleSelectCity"
+          @click-detail="moveToDetail"
+          @toggle-favorite="handleToggleFavorite"
+          @remove="handleRemoveLocation"
+        />
       </div>
 
       <div v-else-if="!isLoading" class="empty-state">
-        <p>검색 조건에 맞는 도시가 없습니다.</p>
+        <p>표시할 날씨 카드가 없습니다.</p>
+
+        <p>도시를 검색한 후 ‘대시보드에 추가’ 버튼을 눌러주세요.</p>
 
         <button type="button" class="secondary-button" @click="resetFilters">
           검색 조건 초기화
         </button>
       </div>
 
-      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      <p class="sr-only" role="status" aria-live="polite">
         {{ favoriteMessage }}
       </p>
 
@@ -573,23 +576,35 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.weather-home {
+/* ========================================
+   검색과 지역 필터
+======================================== */
+
+.filter-layout {
   display: grid;
-  gap: 24px;
 
-  box-sizing: border-box;
+  grid-template-columns:
+    minmax(0, 1fr)
+    220px;
 
-  width: 100%;
-  max-width: 1440px;
+  grid-template-areas:
+    'search region'
+    'reset reset';
 
-  margin: 0 auto;
+  align-items: start;
 
-  padding: 32px clamp(24px, 5vw, 80px) 56px;
+  gap: 16px 18px;
 }
 
-/* ========================================
-   공통 폼
-======================================== */
+.search-area {
+  grid-area: search;
+  min-width: 0;
+}
+
+.region-area {
+  grid-area: region;
+  min-width: 0;
+}
 
 .form-label {
   display: block;
@@ -631,97 +646,21 @@ onMounted(() => {
   box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
 }
 
-/* ========================================
-   통합 검색 및 필터
-======================================== */
-
-.filter-layout {
-  display: grid;
-
-  grid-template-columns:
-    minmax(0, 1fr)
-    180px;
-
-  grid-template-areas:
-    'search region'
-    'reset region';
-
-  align-items: start;
-
-  gap: 16px 18px;
-}
-
-.search-area {
-  grid-area: search;
-
-  min-width: 0;
-}
-
-.region-area {
-  grid-area: region;
-
-  min-width: 0;
-}
-
 .reset-button {
   grid-area: reset;
-
   justify-self: start;
-  align-self: start;
 }
 
-/* ========================================
-   버튼
-======================================== */
+.input-guide {
+  margin: 15px 0 0;
 
-.primary-button,
-.secondary-button,
-.remove-location-button {
-  min-height: 42px;
+  color: #64748b;
 
-  padding: 9px 14px;
-
-  border-radius: 9px;
-
-  font: inherit;
   font-size: 13px;
-  font-weight: 800;
-
-  cursor: pointer;
-}
-
-.primary-button {
-  border: 1px solid #2563eb;
-
-  background-color: #2563eb;
-  color: #ffffff;
-}
-
-.primary-button:hover {
-  background-color: #1d4ed8;
-}
-
-.primary-button:disabled {
-  opacity: 0.55;
-
-  cursor: not-allowed;
-}
-
-.secondary-button {
-  border: 1px solid #cbd5e1;
-
-  background-color: #ffffff;
-  color: #334155;
-}
-
-.secondary-button:hover {
-  border-color: #2563eb;
-
-  color: #1d4ed8;
 }
 
 /* ========================================
-   검색 결과 메시지
+   결과 메시지
 ======================================== */
 
 .message {
@@ -746,32 +685,216 @@ onMounted(() => {
 }
 
 /* ========================================
-   API 상태
+   API 자동 검색 결과
+======================================== */
+
+.api-search-section {
+  margin-top: 24px;
+  padding-top: 24px;
+
+  border-top: 1px solid #e2e8f0;
+}
+
+.search-result-heading {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  margin-bottom: 15px;
+}
+
+.search-result-heading h2,
+.search-result-heading p {
+  margin: 0;
+}
+
+.search-result-heading h2 {
+  color: #172033;
+
+  font-size: 18px;
+}
+
+.search-result-heading p {
+  margin-top: 5px;
+
+  color: #64748b;
+
+  font-size: 13px;
+}
+
+.result-count {
+  flex: 0 0 auto;
+
+  padding: 5px 9px;
+
+  border-radius: 999px;
+
+  background-color: #eff6ff;
+  color: #1d4ed8;
+
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.api-result-list {
+  display: grid;
+  gap: 10px;
+}
+
+.api-result-item {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  padding: 14px 16px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+
+  background-color: #f8fafc;
+}
+
+.api-result-main {
+  display: flex;
+
+  align-items: center;
+
+  min-width: 0;
+
+  gap: 12px;
+}
+
+.result-weather-icon {
+  flex: 0 0 auto;
+
+  width: 54px;
+  height: 54px;
+
+  object-fit: contain;
+}
+
+.result-location {
+  min-width: 0;
+}
+
+.result-location h3,
+.result-location p {
+  margin: 0;
+}
+
+.result-location h3 {
+  overflow-wrap: anywhere;
+
+  color: #172033;
+
+  font-size: 16px;
+}
+
+/* 행정구역 */
+.result-administrative-area {
+  margin-top: 4px !important;
+
+  color: #475569 !important;
+
+  font-size: 13px !important;
+  font-weight: 750;
+}
+
+/* 좌표 */
+.result-coordinate {
+  margin-top: 4px !important;
+
+  color: #94a3b8 !important;
+
+  font-size: 11px !important;
+  line-height: 1.5;
+}
+
+.result-description {
+  margin-top: 5px !important;
+
+  color: #475569 !important;
+
+  font-size: 13px !important;
+  font-weight: 700;
+}
+
+.api-result-actions {
+  display: flex;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+
+  gap: 14px;
+}
+
+.result-temperature {
+  margin: 0;
+
+  color: #172033;
+
+  font-size: 21px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.add-location-button {
+  min-height: 40px;
+
+  padding: 8px 13px;
+
+  border: 1px solid #2563eb;
+  border-radius: 9px;
+
+  background-color: #2563eb;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+.add-location-button:hover {
+  background-color: #1d4ed8;
+}
+
+.add-location-button:disabled {
+  border-color: #cbd5e1;
+
+  background-color: #e2e8f0;
+  color: #64748b;
+
+  cursor: not-allowed;
+}
+
+.waiting-message {
+  margin: 0;
+
+  color: #64748b;
+
+  font-size: 14px;
+}
+
+/* ========================================
+   날씨 상태
 ======================================== */
 
 .weather-status {
   margin-bottom: 18px;
 }
 
-.loading-message,
-.error-box,
-.weather-update {
-  margin: 0;
-
-  padding: 14px 16px;
-
-  border-radius: 10px;
-
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.loading-message {
-  background-color: #eff6ff;
-  color: #1d4ed8;
-}
-
-.error-box,
 .weather-update {
   display: flex;
 
@@ -779,26 +902,22 @@ onMounted(() => {
   justify-content: space-between;
 
   gap: 16px;
-}
 
-.error-box {
-  background-color: #fef2f2;
-  color: #b91c1c;
-}
+  margin: 0;
+  padding: 14px 16px;
 
-.weather-update {
+  border-radius: 10px;
+
   background-color: #ecfdf5;
   color: #047857;
+
+  font-size: 14px;
+  font-weight: 700;
 }
 
-.error-box p,
 .weather-update p {
   margin: 0;
 }
-
-/* ========================================
-   날씨 카드
-======================================== */
 
 .result-status {
   margin: 0 0 18px;
@@ -807,60 +926,6 @@ onMounted(() => {
 
   font-size: 14px;
   font-weight: 700;
-}
-
-.weather-grid {
-  display: grid;
-
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-
-  gap: 32px 22px;
-
-  width: 100%;
-}
-
-.weather-grid > :only-child {
-  width: 100%;
-  max-width: 420px;
-}
-
-.weather-card-item {
-  display: grid;
-
-  align-content: start;
-
-  gap: 10px;
-
-  min-width: 0;
-}
-
-.remove-location-button {
-  width: 100%;
-
-  border: 1px solid #fecaca;
-
-  background-color: #ffffff;
-  color: #b91c1c;
-}
-
-.remove-location-button:hover {
-  background-color: #fef2f2;
-}
-
-.empty-state {
-  display: grid;
-
-  justify-items: start;
-
-  gap: 12px;
-
-  padding: 26px 0;
-
-  color: #64748b;
-}
-
-.empty-state p {
-  margin: 0;
 }
 
 .selected-message {
@@ -878,25 +943,7 @@ onMounted(() => {
    태블릿
 ======================================== */
 
-@media (max-width: 1100px) {
-  .weather-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .weather-grid > :only-child {
-    max-width: 400px;
-  }
-}
-
-/* ========================================
-   모바일
-======================================== */
-
-@media (max-width: 600px) {
-  .weather-home {
-    padding: 24px 18px 40px;
-  }
-
+@media (max-width: 850px) {
   .filter-layout {
     grid-template-columns: 1fr;
 
@@ -907,30 +954,36 @@ onMounted(() => {
   }
 
   .reset-button {
-    width: 100%;
-
     justify-self: stretch;
   }
 
-  .primary-button,
-  .secondary-button {
-    width: 100%;
-  }
-
-  .error-box,
-  .weather-update {
+  .api-result-item {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .weather-grid {
-    grid-template-columns: 1fr;
+  .api-result-actions {
+    justify-content: space-between;
+  }
+}
 
-    row-gap: 32px;
+/* ========================================
+   모바일
+======================================== */
+
+@media (max-width: 600px) {
+  .api-result-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .weather-grid > :only-child {
-    max-width: none;
+  .add-location-button {
+    width: 100%;
+  }
+
+  .weather-update {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

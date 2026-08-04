@@ -1,20 +1,55 @@
 <script setup>
+// ========================================
+// 주요 기능
+// ========================================
+
 /**
  * Weather Now에서 제공하는 주요 기능입니다.
+ *
+ * 과제에서 요구한 기본 기능과
+ * 추가로 구현한 기능을 함께 설명합니다.
  */
 const featureList = [
   {
     title: '실시간 날씨 조회',
 
     description:
-      'OpenWeather API를 이용해 서울, 대전, 제주와 사용자가 추가한 지역의 현재 날씨를 조회합니다.',
+      'OpenWeather Current Weather API를 이용해 대시보드에 등록된 지역의 최신 기온과 날씨 상태를 불러옵니다.',
   },
 
   {
-    title: '통합 도시 검색 및 추가',
+    title: '도시 이름 및 초성 검색',
 
     description:
-      '등록된 도시는 이름이나 초성으로 검색하고, 등록되지 않은 지역은 검색 버튼을 눌러 새로운 날씨 카드로 추가할 수 있습니다.',
+      '현재 대시보드에 등록된 도시는 전체 이름뿐 아니라 ㅅㅇ, ㄷㅈ과 같은 한글 초성으로도 검색할 수 있습니다.',
+  },
+
+  {
+    title: '지역 자동 API 검색',
+
+    description:
+      '등록되지 않은 지역명을 두 글자 이상 입력하면 별도의 검색 버튼 없이 OpenWeather Geocoding API를 자동으로 호출합니다.',
+  },
+
+  {
+    title: '검색과 지역 추가 분리',
+
+    description:
+      'API 검색 결과는 바로 저장되지 않으며, 사용자가 대시보드에 추가 버튼을 눌러야 날씨 카드로 등록됩니다.',
+  },
+
+  {
+    title: '검색 결과 상세 구분',
+
+    description:
+      '동일하거나 비슷한 이름의 지역을 구분할 수 있도록 행정구역, 국가 코드와 위도·경도를 함께 표시합니다.',
+  },
+
+  {
+    title: '검색 결과 중복 제거',
+
+    description:
+      '이름이 다르더라도 Current Weather API가 반환한 국가 코드와 좌표가 같으면 동일한 지역으로 판단해 하나만 표시합니다.',
   },
 
   {
@@ -35,34 +70,258 @@ const featureList = [
     title: '즐겨찾기 도시 관리',
 
     description:
-      '자주 확인하는 도시를 즐겨찾기에 추가하고 즐겨찾기 전용 페이지에서 모아 볼 수 있습니다.',
+      '자주 확인하는 도시를 즐겨찾기에 추가하고 별도의 즐겨찾기 페이지에서 모아 볼 수 있습니다.',
+  },
+
+  {
+    title: '즐겨찾기 상태 표시',
+
+    description:
+      '즐겨찾기된 도시는 노란색 버튼과 채워진 별 아이콘으로 표시해 현재 상태를 쉽게 구분할 수 있습니다.',
+  },
+
+  {
+    title: '대시보드 카드 삭제',
+
+    description:
+      '검색으로 추가한 지역뿐 아니라 기본 지역인 서울, 대전과 제주도 카드 내부의 삭제 버튼으로 제거할 수 있습니다.',
   },
 
   {
     title: '섭씨·화씨 단위 변경',
 
     description:
-      '화면 상단의 단위 전환 버튼을 이용해 기온 표시를 섭씨와 화씨 사이에서 변경할 수 있습니다.',
-  },
-
-  {
-    title: '상태 유지',
-
-    description:
-      '추가한 지역, 즐겨찾기 도시와 온도 단위를 Local Storage에 저장해 새로고침 후에도 유지합니다.',
+      '화면 상단의 단위 전환 기능을 이용해 모든 기온 표시를 섭씨와 화씨 사이에서 변경할 수 있습니다.',
   },
 
   {
     title: '반응형 및 접근성 고려',
 
     description:
-      '화면 크기에 따라 카드와 메뉴 배치를 조정하고, 키보드 초점 표시와 상태 안내용 ARIA 속성을 적용했습니다.',
+      '화면 크기에 따라 카드와 메뉴 배치를 변경하고, 키보드 초점 표시, 상태 안내와 ARIA 속성을 적용했습니다.',
   },
 ]
 
+// ========================================
+// 추가 구현 기능
+// ========================================
+
 /**
- * 프로젝트에서 사용한 주요 기술입니다.
+ * 과제의 기본 요구사항 외에
+ * 추가로 구현한 핵심 기능입니다.
  */
+const additionalFeatureList = [
+  {
+    number: '01',
+
+    title: '디바운스를 적용한 자동 검색',
+
+    description:
+      '검색어 입력이 멈춘 뒤 600ms가 지난 시점에 API를 호출하여, 글자를 입력할 때마다 불필요한 요청이 발생하지 않도록 처리했습니다.',
+  },
+
+  {
+    number: '02',
+
+    title: '검색과 저장 동작 분리',
+
+    description:
+      '검색 결과를 먼저 확인하고 사용자가 직접 추가 버튼을 눌러야 대시보드와 Local Storage에 저장되도록 구성했습니다.',
+  },
+
+  {
+    number: '03',
+
+    title: '동명 지역 식별 정보 제공',
+
+    description:
+      '일산처럼 같은 이름을 가진 지역이 여러 개 반환될 수 있으므로 행정구역, 국가 코드와 좌표를 함께 표시했습니다.',
+  },
+
+  {
+    number: '04',
+
+    title: '좌표 기반 중복 결과 제거',
+
+    description:
+      'Geocoding API의 후보 이름이 서로 달라도 최종 날씨 좌표가 같으면 중복 지역으로 판단하여 첫 번째 결과만 유지합니다.',
+  },
+
+  {
+    number: '05',
+
+    title: '기본 도시 삭제 상태 유지',
+
+    description:
+      '서울, 대전과 제주를 삭제한 경우 원본 배열을 직접 수정하지 않고 숨긴 도시 ID를 저장해 새로고침 후에도 다시 나타나지 않도록 했습니다.',
+  },
+
+  {
+    number: '06',
+
+    title: '일부 API 요청 실패 처리',
+
+    description:
+      '여러 도시 중 일부 지역의 요청이 실패하더라도 성공한 지역의 날씨는 계속 화면에 표시하도록 Promise.allSettled를 사용했습니다.',
+  },
+]
+
+// ========================================
+// 데이터 처리 흐름
+// ========================================
+
+/**
+ * 지역 정보가 화면의 날씨 카드로
+ * 표시되는 과정을 설명합니다.
+ */
+const dataFlowList = [
+  {
+    step: '01',
+
+    title: '표시할 지역 목록 구성',
+
+    description:
+      '기본 지역과 Local Storage에서 복원한 추가 지역을 합친 뒤, 사용자가 삭제한 기본 지역은 숨김 ID 목록을 기준으로 제외합니다.',
+  },
+
+  {
+    step: '02',
+
+    title: '현재 날씨 API 요청',
+
+    description:
+      'Pinia Store에서 Axios를 사용해 각 지역의 위도와 경도를 OpenWeather Current Weather API로 전달합니다.',
+  },
+
+  {
+    step: '03',
+
+    title: '응답 데이터 정규화',
+
+    description:
+      'API마다 사용하기 불편한 원본 응답을 카드, 상세 페이지와 즐겨찾기 페이지에서 공통으로 사용할 수 있는 도시 객체로 변환합니다.',
+  },
+
+  {
+    step: '04',
+
+    title: 'Pinia 상태 저장',
+
+    description:
+      '변환된 날씨 객체를 weatherList에 저장하고, 각 Vue 컴포넌트는 Store의 반응형 데이터를 전달받아 화면을 갱신합니다.',
+  },
+
+  {
+    step: '05',
+
+    title: '화면 출력',
+
+    description:
+      'WeatherCard는 현재 날씨를 표시하고, 상세 보기, 즐겨찾기와 삭제 이벤트를 부모 View에 전달합니다.',
+  },
+]
+
+// ========================================
+// 검색 데이터 흐름
+// ========================================
+
+/**
+ * 등록되지 않은 지역을 검색하고
+ * 대시보드에 추가하는 과정입니다.
+ */
+const searchFlowList = [
+  {
+    step: '01',
+
+    title: '검색어 입력',
+
+    description: '사용자가 도시명을 입력하면 현재 대시보드의 카드 목록은 즉시 필터링됩니다.',
+  },
+
+  {
+    step: '02',
+
+    title: '디바운스 대기',
+
+    description:
+      '두 글자 이상의 일반 검색어를 입력한 뒤 600ms 동안 추가 입력이 없으면 API 검색을 시작합니다.',
+  },
+
+  {
+    step: '03',
+
+    title: 'Geocoding API 호출',
+
+    description:
+      '검색어를 OpenWeather Geocoding API에 전달해 최대 5개의 지역명, 행정구역, 국가 코드와 좌표 후보를 가져옵니다.',
+  },
+
+  {
+    step: '04',
+
+    title: '후보별 날씨 조회',
+
+    description:
+      '각 좌표 후보에 대해 Current Weather API를 호출하여 현재 기온, 날씨 상태와 아이콘을 가져옵니다.',
+  },
+
+  {
+    step: '05',
+
+    title: '중복 결과 제거',
+
+    description: '최종 국가 코드와 날씨 좌표가 동일한 결과는 같은 지역으로 판단해 하나만 남깁니다.',
+  },
+
+  {
+    step: '06',
+
+    title: '사용자 선택 후 추가',
+
+    description:
+      '사용자가 원하는 검색 결과의 대시보드에 추가 버튼을 눌러야 위치 정보가 저장되고 실제 날씨 카드가 생성됩니다.',
+  },
+]
+
+// ========================================
+// Local Storage
+// ========================================
+
+/**
+ * 브라우저에 저장하는 사용자 설정입니다.
+ *
+ * 변경되는 날씨 값 자체는 저장하지 않습니다.
+ */
+const storageList = [
+  {
+    title: '검색으로 추가한 지역',
+
+    description: '지역명, 행정구역, 국가 코드와 좌표를 저장해 새로고침 후 다시 날씨를 조회합니다.',
+  },
+
+  {
+    title: '삭제한 기본 지역',
+
+    description: '서울, 대전과 제주 중 사용자가 삭제한 도시 ID를 숨김 목록으로 저장합니다.',
+  },
+
+  {
+    title: '즐겨찾기 도시',
+
+    description: '즐겨찾기로 지정한 도시 ID를 저장해 페이지를 다시 열어도 상태가 유지됩니다.',
+  },
+
+  {
+    title: '온도 표시 단위',
+
+    description: '사용자가 선택한 섭씨 또는 화씨 단위를 저장합니다.',
+  },
+]
+
+// ========================================
+// 사용 기술
+// ========================================
+
 const technologyList = [
   'Vue 3',
   'Composition API',
@@ -72,348 +331,378 @@ const technologyList = [
   'JavaScript',
   'Props',
   'Emits',
+  'Slots',
   'Computed',
   'Watch',
   'WatchEffect',
+  'Promise.allSettled',
   'Local Storage',
-  'OpenWeather API',
+  'OpenWeather Current Weather API',
+  'OpenWeather Geocoding API',
   'Semantic HTML',
   'ARIA',
   'Responsive CSS',
 ]
 
-/**
- * 날씨 데이터가 처리되는 과정을 설명합니다.
- */
-const dataFlowList = [
-  {
-    step: '01',
+// ========================================
+// 향후 개선 계획
+// ========================================
 
-    title: '지역 정보 준비',
-
-    description:
-      '기본 지역과 Local Storage에서 복원한 추가 지역의 이름, 국가 코드, 위도와 경도를 준비합니다.',
-  },
-
-  {
-    step: '02',
-
-    title: '날씨 API 요청',
-
-    description:
-      'Pinia Store에서 Axios를 이용해 각 지역의 좌표로 OpenWeather Current Weather API를 호출합니다.',
-  },
-
-  {
-    step: '03',
-
-    title: '응답 데이터 변환',
-
-    description: 'API 응답을 프로젝트에서 사용하는 동일한 날씨 객체 구조로 변환합니다.',
-  },
-
-  {
-    step: '04',
-
-    title: '화면 출력',
-
-    description: '변환된 데이터를 날씨 카드, 즐겨찾기 페이지와 상세 페이지에서 함께 사용합니다.',
-  },
-]
-
-/**
- * 브라우저에 저장하는 항목입니다.
- */
-const storageList = [
-  {
-    title: '추가 지역',
-
-    description: '사용자가 검색으로 추가한 지역의 이름, 국가 코드와 좌표를 저장합니다.',
-  },
-
-  {
-    title: '즐겨찾기',
-
-    description: '즐겨찾기로 설정한 도시의 ID 목록을 저장합니다.',
-  },
-
-  {
-    title: '온도 단위',
-
-    description: '사용자가 선택한 섭씨 또는 화씨 설정을 저장합니다.',
-  },
-]
-
-/**
- * 향후 개선할 수 있는 기능입니다.
- */
 const futurePlanList = [
   {
-    title: '검색 결과 선택',
+    title: '검색 결과 선택 정확도 개선',
 
     description:
-      '같은 이름을 가진 여러 지역이 검색되는 경우 사용자가 국가와 지역을 비교해 직접 선택할 수 있도록 개선할 수 있습니다.',
+      '행정구역이 없는 API 검색 결과에 대해 역지오코딩이나 별도의 지역 데이터로 보다 자세한 주소 정보를 제공할 수 있습니다.',
   },
 
   {
-    title: '예보 정보 추가',
+    title: '시간별 및 일별 예보',
 
     description:
-      '현재 날씨뿐 아니라 시간별 또는 일별 예보를 확인할 수 있도록 기능을 확장할 수 있습니다.',
+      '현재 날씨뿐 아니라 시간별·일별 예보 데이터를 추가하여 향후 날씨 변화를 확인할 수 있도록 확장할 수 있습니다.',
   },
 
   {
-    title: '일부 요청 실패 처리',
+    title: '도시 순서 변경',
 
     description:
-      '여러 지역 중 일부 API 요청만 실패하더라도 성공한 지역의 날씨는 계속 표시하도록 개선할 수 있습니다.',
+      '사용자가 자주 확인하는 도시 카드를 드래그하여 원하는 순서로 배치할 수 있도록 개선할 수 있습니다.',
   },
 ]
 </script>
 
 <template>
-  <section class="about-page page-container">
-    <!-- ======================================
-         서비스 소개
-    ======================================= -->
+  <div class="about-page">
+    <div class="about-container">
+      <!-- ======================================
+           서비스 소개
+      ======================================= -->
 
-    <header class="intro-card">
-      <p class="page-eyebrow">ABOUT WEATHER NOW</p>
+      <header class="intro-card">
+        <p class="eyebrow">ABOUT WEATHER NOW</p>
 
-      <h1 class="about-title">Weather Now 서비스 소개</h1>
+        <h1>Weather Now 서비스 소개</h1>
 
-      <p class="intro-description">
-        Weather Now는 사용자가 원하는 지역의 실시간 날씨를 검색하고 관리할 수 있도록 제작한 Vue 기반
-        날씨 대시보드입니다.
-      </p>
+        <p class="intro-description">
+          Weather Now는 사용자가 원하는 지역의 실시간 날씨를 검색하고 관리할 수 있도록 제작한 Vue
+          기반 날씨 대시보드입니다.
+        </p>
 
-      <p class="intro-sub-description">
-        OpenWeather API를 통해 현재 날씨를 불러오며, 지역 검색과 즐겨찾기, 상세 날씨 확인, 섭씨·화씨
-        단위 변경 기능을 제공합니다.
-      </p>
-    </header>
+        <p class="intro-sub-description">
+          OpenWeather API를 이용해 실제 날씨를 조회하며, 지역 자동 검색, 선택적 카드 추가, 즐겨찾기,
+          상세 날씨 확인과 사용자 설정 유지 기능을 제공합니다.
+        </p>
+      </header>
 
-    <!-- ======================================
-         주요 기능
-    ======================================= -->
+      <!-- ======================================
+           주요 기능
+      ======================================= -->
 
-    <section class="content-card" aria-labelledby="feature-title">
-      <div class="section-heading">
-        <p class="section-number">01</p>
-
-        <div>
-          <h2 id="feature-title">주요 기능</h2>
-
-          <p>Weather Now에서 사용할 수 있는 핵심 기능입니다.</p>
-        </div>
-      </div>
-
-      <ul class="information-grid">
-        <li v-for="feature in featureList" :key="feature.title">
-          <h3>
-            {{ feature.title }}
-          </h3>
-
-          <p>
-            {{ feature.description }}
-          </p>
-        </li>
-      </ul>
-    </section>
-
-    <!-- ======================================
-         데이터 처리 흐름
-    ======================================= -->
-
-    <section class="content-card" aria-labelledby="data-flow-title">
-      <div class="section-heading">
-        <p class="section-number">02</p>
-
-        <div>
-          <h2 id="data-flow-title">데이터 처리 흐름</h2>
-
-          <p>지역 정보가 실제 날씨 카드로 표시되는 과정입니다.</p>
-        </div>
-      </div>
-
-      <ol class="data-flow-list">
-        <li v-for="flow in dataFlowList" :key="flow.step">
-          <span class="flow-step" aria-hidden="true">
-            {{ flow.step }}
-          </span>
+      <section class="content-card" aria-labelledby="feature-title">
+        <div class="section-heading">
+          <p class="section-number">01</p>
 
           <div>
+            <h2 id="feature-title">주요 기능</h2>
+
+            <p>Weather Now에서 사용할 수 있는 전체 기능입니다.</p>
+          </div>
+        </div>
+
+        <ul class="information-grid">
+          <li v-for="feature in featureList" :key="feature.title">
             <h3>
-              {{ flow.title }}
+              {{ feature.title }}
             </h3>
 
             <p>
-              {{ flow.description }}
+              {{ feature.description }}
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ======================================
+           추가 구현 기능
+      ======================================= -->
+
+      <section class="content-card" aria-labelledby="additional-feature-title">
+        <div class="section-heading">
+          <p class="section-number">02</p>
+
+          <div>
+            <h2 id="additional-feature-title">추가 구현 기능</h2>
+
+            <p>
+              기본적인 날씨 조회 기능 외에 사용자 경험과 데이터 안정성을 위해 추가한 기능입니다.
             </p>
           </div>
-        </li>
-      </ol>
-    </section>
-
-    <!-- ======================================
-         사용 기술
-    ======================================= -->
-
-    <section class="content-card" aria-labelledby="technology-title">
-      <div class="section-heading">
-        <p class="section-number">03</p>
-
-        <div>
-          <h2 id="technology-title">사용 기술</h2>
-
-          <p>프로젝트 구현에 사용한 주요 기술입니다.</p>
         </div>
-      </div>
 
-      <ul class="technology-list">
-        <li v-for="technology in technologyList" :key="technology">
-          {{ technology }}
-        </li>
-      </ul>
-    </section>
+        <ol class="additional-feature-list">
+          <li v-for="feature in additionalFeatureList" :key="feature.number">
+            <span class="feature-number" aria-hidden="true">
+              {{ feature.number }}
+            </span>
 
-    <!-- ======================================
-         저장 데이터
-    ======================================= -->
+            <div>
+              <h3>
+                {{ feature.title }}
+              </h3>
 
-    <section class="content-card" aria-labelledby="storage-title">
-      <div class="section-heading">
-        <p class="section-number">04</p>
+              <p>
+                {{ feature.description }}
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
 
-        <div>
-          <h2 id="storage-title">Local Storage 사용</h2>
+      <!-- ======================================
+           전체 날씨 데이터 흐름
+      ======================================= -->
 
-          <p>새로고침 후에도 사용자 설정을 유지하기 위해 다음 항목을 브라우저에 저장합니다.</p>
+      <section class="content-card" aria-labelledby="data-flow-title">
+        <div class="section-heading">
+          <p class="section-number">03</p>
+
+          <div>
+            <h2 id="data-flow-title">전체 날씨 데이터 흐름</h2>
+
+            <p>대시보드 진입 후 지역의 실시간 날씨가 화면에 표시되는 과정입니다.</p>
+          </div>
         </div>
-      </div>
 
-      <ul class="storage-grid">
-        <li v-for="storage in storageList" :key="storage.title">
-          <h3>
-            {{ storage.title }}
-          </h3>
+        <ol class="flow-list">
+          <li v-for="flow in dataFlowList" :key="flow.step">
+            <span class="flow-step" aria-hidden="true">
+              {{ flow.step }}
+            </span>
 
-          <p>
-            {{ storage.description }}
-          </p>
-        </li>
-      </ul>
+            <div>
+              <h3>
+                {{ flow.title }}
+              </h3>
 
-      <p class="storage-notice">
-        기온, 습도, 풍속과 같은 날씨 값은 Local Storage에 저장하지 않습니다. 날씨는 변경되는
-        데이터이므로 페이지를 다시 불러올 때 OpenWeather API에서 최신 정보를 요청합니다.
-      </p>
-    </section>
+              <p>
+                {{ flow.description }}
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
 
-    <!-- ======================================
-         향후 개선 계획
-    ======================================= -->
+      <!-- ======================================
+           자동 검색 데이터 흐름
+      ======================================= -->
 
-    <section class="content-card" aria-labelledby="future-title">
-      <div class="section-heading">
-        <p class="section-number">05</p>
+      <section class="content-card" aria-labelledby="search-flow-title">
+        <div class="section-heading">
+          <p class="section-number">04</p>
 
-        <div>
-          <h2 id="future-title">향후 개선 계획</h2>
+          <div>
+            <h2 id="search-flow-title">지역 자동 검색 흐름</h2>
 
-          <p>현재 구조에서 추가로 확장할 수 있는 기능입니다.</p>
+            <p>저장되지 않은 지역을 검색하고 대시보드에 추가하는 과정입니다.</p>
+          </div>
         </div>
-      </div>
 
-      <ul class="plan-list">
-        <li v-for="plan in futurePlanList" :key="plan.title">
-          <h3>
-            {{ plan.title }}
-          </h3>
+        <ol class="flow-list">
+          <li v-for="flow in searchFlowList" :key="flow.step">
+            <span class="flow-step" aria-hidden="true">
+              {{ flow.step }}
+            </span>
 
-          <p>
-            {{ plan.description }}
-          </p>
-        </li>
-      </ul>
-    </section>
+            <div>
+              <h3>
+                {{ flow.title }}
+              </h3>
 
-    <!-- ======================================
-     제작자
-======================================= -->
+              <p>
+                {{ flow.description }}
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
 
-    <footer class="creator-section">
-      <div>
-        <p class="creator-label">CREATOR</p>
+      <!-- ======================================
+           Local Storage
+      ======================================= -->
 
-        <h2>제작자</h2>
-      </div>
+      <section class="content-card" aria-labelledby="storage-title">
+        <div class="section-heading">
+          <p class="section-number">05</p>
 
-      <div class="creator-content">
-        <p class="creator-name">
-          이현정
+          <div>
+            <h2 id="storage-title">사용자 상태 저장</h2>
 
-          <span aria-hidden="true"> · </span>
+            <p>
+              새로고침 후에도 사용자 설정을 유지하기 위해 다음 데이터를 Local Storage에 저장합니다.
+            </p>
+          </div>
+        </div>
 
-          Kara Lee
+        <ul class="storage-grid">
+          <li v-for="storage in storageList" :key="storage.title">
+            <h3>
+              {{ storage.title }}
+            </h3>
+
+            <p>
+              {{ storage.description }}
+            </p>
+          </li>
+        </ul>
+
+        <p class="storage-notice">
+          현재 기온, 습도와 풍속 등 실제 날씨 값은 Local Storage에 저장하지 않습니다. 날씨는 계속
+          변경되는 데이터이므로 페이지 진입과 새로고침 시 OpenWeather API에서 다시 조회합니다.
         </p>
+      </section>
 
-        <p class="creator-description">
-          Vue 프론트엔드 학습 과정에서 제작한 개인 날씨 대시보드 프로젝트입니다.
-        </p>
+      <!-- ======================================
+           사용 기술
+      ======================================= -->
 
-        <a
-          href="https://github.com/dlkara"
-          class="github-link"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="이현정의 GitHub 프로필 새 창에서 열기"
-        >
-          <svg class="github-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              fill="currentColor"
-              d="M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.89-2.78.62-3.37-1.2-3.37-1.2-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.3 9.3 0 0 1 12 6.95a9.3 9.3 0 0 1 2.5.35c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.8-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.8 0 .27.18.59.69.49A10.23 10.23 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z"
-            />
-          </svg>
+      <section class="content-card" aria-labelledby="technology-title">
+        <div class="section-heading">
+          <p class="section-number">06</p>
 
-          <span class="github-link-text"> github.com/dlkara </span>
+          <div>
+            <h2 id="technology-title">사용 기술</h2>
 
-          <svg class="external-link-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              fill="none"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M14 5h5v5M19 5l-9 9M19 13v6H5V5h6"
-            />
-          </svg>
-        </a>
+            <p>상태 관리, 라우팅과 외부 API 연동에 사용한 기술입니다.</p>
+          </div>
+        </div>
+
+        <ul class="technology-list">
+          <li v-for="technology in technologyList" :key="technology">
+            {{ technology }}
+          </li>
+        </ul>
+      </section>
+
+      <!-- ======================================
+           향후 개선 계획
+      ======================================= -->
+
+      <section class="content-card" aria-labelledby="future-plan-title">
+        <div class="section-heading">
+          <p class="section-number">07</p>
+
+          <div>
+            <h2 id="future-plan-title">향후 개선 계획</h2>
+
+            <p>현재 프로젝트 구조를 기반으로 확장할 수 있는 기능입니다.</p>
+          </div>
+        </div>
+
+        <ul class="plan-list">
+          <li v-for="plan in futurePlanList" :key="plan.title">
+            <h3>
+              {{ plan.title }}
+            </h3>
+
+            <p>
+              {{ plan.description }}
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ======================================
+           제작자
+      ======================================= -->
+
+      <footer class="creator-section">
+        <div>
+          <p class="creator-label">CREATOR</p>
+
+          <h2>제작자</h2>
+        </div>
+
+        <div class="creator-content">
+          <p class="creator-name">
+            이현정
+
+            <span aria-hidden="true"> · </span>
+
+            Kara Lee
+          </p>
+
+          <p class="creator-description">
+            Vue 프론트엔드 학습 과정에서 제작한 개인 실시간 날씨 대시보드 프로젝트입니다.
+          </p>
+
+          <a
+            href="https://github.com/dlkara"
+            class="github-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="이현정의 GitHub 프로필 새 창에서 열기"
+          >
+            <svg class="github-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.89-2.78.62-3.37-1.2-3.37-1.2-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.3 9.3 0 0 1 12 6.95a9.3 9.3 0 0 1 2.5.35c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.8-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.8 0 .27.18.59.69.49A10.23 10.23 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z"
+              />
+            </svg>
+
+            <span class="github-link-text"> github.com/dlkara </span>
+
+            <svg class="external-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M14 5h5v5M19 5l-9 9M19 13v6H5V5h6"
+              />
+            </svg>
+          </a>
+        </div>
+      </footer>
+
+      <!-- ======================================
+           홈 이동
+      ======================================= -->
+
+      <div class="bottom-actions">
+        <RouterLink to="/" class="home-link"> 날씨 홈으로 돌아가기 </RouterLink>
       </div>
-    </footer>
-
-    <!-- ======================================
-         홈 이동
-    ======================================= -->
-
-    <div class="bottom-actions">
-      <RouterLink to="/" class="primary-button home-link"> 날씨 홈으로 돌아가기 </RouterLink>
     </div>
-  </section>
+  </div>
 </template>
 
 <style scoped>
 /* ========================================
-   About 화면 전용 레이아웃
+   전체 레이아웃
 ======================================== */
 
 .about-page {
-  align-content: start;
+  min-height: calc(100vh - 70px);
+
+  padding: 48px clamp(24px, 5vw, 80px) 72px;
+
+  background-color: #f5f7fb;
 }
+
+.about-container {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+}
+
+/* ========================================
+   공통 카드
+======================================== */
 
 .intro-card,
 .content-card,
 .creator-section {
+  margin-bottom: 24px;
   padding: 32px;
 
   border: 1px solid #dbe3ee;
@@ -425,14 +714,24 @@ const futurePlanList = [
 }
 
 /* ========================================
-   서비스 소개
+   소개
 ======================================== */
 
 .intro-card {
   background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
 }
 
-.about-title {
+.eyebrow {
+  margin: 0 0 8px;
+
+  color: #2563eb;
+
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.intro-card h1 {
   margin: 0;
 
   color: #172033;
@@ -443,7 +742,7 @@ const futurePlanList = [
 }
 
 .intro-description {
-  max-width: 780px;
+  max-width: 820px;
 
   margin: 18px 0 0;
 
@@ -455,7 +754,7 @@ const futurePlanList = [
 }
 
 .intro-sub-description {
-  max-width: 780px;
+  max-width: 820px;
 
   margin: 12px 0 0;
 
@@ -465,7 +764,7 @@ const futurePlanList = [
 }
 
 /* ========================================
-   공통 섹션 제목
+   섹션 제목
 ======================================== */
 
 .section-heading {
@@ -555,10 +854,83 @@ const futurePlanList = [
 }
 
 /* ========================================
-   데이터 처리 흐름
+   추가 구현 기능
 ======================================== */
 
-.data-flow-list {
+.additional-feature-list {
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 14px;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.additional-feature-list li {
+  display: grid;
+
+  grid-template-columns:
+    46px
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  gap: 14px;
+
+  padding: 20px;
+
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+
+  background-color: #f8fbff;
+}
+
+.feature-number {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 42px;
+  height: 42px;
+
+  border-radius: 12px;
+
+  background-color: #dbeafe;
+  color: #1d4ed8;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.additional-feature-list h3,
+.additional-feature-list p {
+  margin: 0;
+}
+
+.additional-feature-list h3 {
+  color: #172033;
+
+  font-size: 17px;
+}
+
+.additional-feature-list p {
+  margin-top: 8px;
+
+  color: #64748b;
+
+  line-height: 1.75;
+}
+
+/* ========================================
+   데이터 흐름
+======================================== */
+
+.flow-list {
   display: grid;
   gap: 14px;
 
@@ -568,7 +940,7 @@ const futurePlanList = [
   list-style: none;
 }
 
-.data-flow-list li {
+.flow-list li {
   display: grid;
 
   grid-template-columns:
@@ -589,6 +961,7 @@ const futurePlanList = [
 
 .flow-step {
   display: inline-flex;
+
   align-items: center;
   justify-content: center;
 
@@ -604,21 +977,52 @@ const futurePlanList = [
   font-weight: 900;
 }
 
-.data-flow-list h3,
-.data-flow-list p {
+.flow-list h3,
+.flow-list p {
   margin: 0;
 }
 
-.data-flow-list h3 {
+.flow-list h3 {
   color: #172033;
 
   font-size: 17px;
 }
 
-.data-flow-list p {
+.flow-list p {
   margin-top: 7px;
 
   color: #64748b;
+
+  line-height: 1.75;
+}
+
+/* ========================================
+   Local Storage
+======================================== */
+
+.storage-grid {
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 14px;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.storage-notice {
+  margin: 16px 0 0;
+
+  padding: 16px 18px;
+
+  border-left: 4px solid #2563eb;
+  border-radius: 0 10px 10px 0;
+
+  background-color: #eff6ff;
+  color: #334155;
 
   line-height: 1.75;
 }
@@ -650,37 +1054,6 @@ const futurePlanList = [
 
   font-size: 14px;
   font-weight: 800;
-}
-
-/* ========================================
-   Local Storage
-======================================== */
-
-.storage-grid {
-  display: grid;
-
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-
-  gap: 14px;
-
-  margin: 0;
-  padding: 0;
-
-  list-style: none;
-}
-
-.storage-notice {
-  margin: 16px 0 0;
-
-  padding: 16px 18px;
-
-  border-left: 4px solid #2563eb;
-  border-radius: 0 10px 10px 0;
-
-  background-color: #eff6ff;
-  color: #334155;
-
-  line-height: 1.75;
 }
 
 /* ========================================
@@ -749,7 +1122,7 @@ const futurePlanList = [
 }
 
 /* ========================================
-   GitHub 링크
+   GitHub
 ======================================== */
 
 .github-link {
@@ -832,17 +1205,38 @@ const futurePlanList = [
 
 .home-link {
   display: inline-flex;
+
   align-items: center;
   justify-content: center;
 
+  min-height: 44px;
+  padding: 10px 18px;
+
+  border-radius: 10px;
+
+  background-color: #2563eb;
+  color: #ffffff;
+
+  font-weight: 800;
   text-decoration: none;
+}
+
+.home-link:hover {
+  background-color: #1d4ed8;
+}
+
+.home-link:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 30%);
+
+  outline-offset: 3px;
 }
 
 /* ========================================
    태블릿
 ======================================== */
 
-@media (max-width: 900px) {
+@media (max-width: 850px) {
+  .additional-feature-list,
   .storage-grid {
     grid-template-columns: 1fr;
   }
@@ -853,6 +1247,10 @@ const futurePlanList = [
 ======================================== */
 
 @media (max-width: 700px) {
+  .about-page {
+    padding: 28px 16px 48px;
+  }
+
   .intro-card,
   .content-card,
   .creator-section {
@@ -868,8 +1266,17 @@ const futurePlanList = [
     gap: 10px;
   }
 
-  .data-flow-list li {
+  .additional-feature-list li,
+  .flow-list li {
     grid-template-columns: 1fr;
+  }
+
+  .github-link {
+    box-sizing: border-box;
+
+    width: 100%;
+
+    justify-content: center;
   }
 }
 </style>

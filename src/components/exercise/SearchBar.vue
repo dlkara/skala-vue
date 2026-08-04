@@ -1,78 +1,70 @@
 <script setup>
-/**
- * 부모 컴포넌트가 관리하는 검색어입니다.
- */
 defineProps({
   query: {
     type: String,
     default: '',
   },
 
-  /**
-   * API로 새로운 지역을 검색하는 중인지 나타냅니다.
-   *
-   * 검색 중에는 검색 버튼을 비활성화합니다.
-   */
   isSearching: {
     type: Boolean,
     default: false,
   },
 })
 
-/**
- * 부모에게 전달할 이벤트입니다.
- *
- * update-query
- * → 사용자가 입력한 검색어 전달
- *
- * search
- * → Enter 또는 검색 버튼 클릭 전달
- */
-const emit = defineEmits(['update-query', 'search'])
+const emit = defineEmits(['update-query', 'clear'])
 
 /**
- * 입력값이 변경될 때
- * 부모 컴포넌트에 새 검색어를 전달합니다.
+ * 입력값이 변경될 때마다
+ * 부모에게 검색어를 전달합니다.
  */
 const handleInput = (event) => {
   emit('update-query', event.target.value)
 }
 
 /**
- * form이 제출되면 부모에게
- * search 이벤트를 전달합니다.
+ * 검색어 삭제 버튼입니다.
  */
-const handleSubmit = () => {
-  emit('search')
+const handleClear = () => {
+  emit('clear')
 }
 </script>
 
 <template>
-  <form class="search-bar" @submit.prevent="handleSubmit">
+  <div class="search-bar">
     <label for="weather-city-search" class="search-label"> 도시 검색 </label>
 
-    <div class="search-controls">
+    <div class="search-input-wrapper">
       <input
         id="weather-city-search"
         :value="query"
         type="search"
         class="search-input"
-        placeholder="서울, 대전, ㅅㅇ, ㄷㅈ"
+        placeholder="예: 부산, 광주, Tokyo"
         autocomplete="off"
         aria-describedby="weather-search-help"
         @input="handleInput"
       />
 
-      <button type="submit" class="search-button" :disabled="isSearching">
-        {{ isSearching ? '검색 중' : '검색' }}
+      <button
+        v-if="query"
+        type="button"
+        class="clear-button"
+        aria-label="검색어 삭제"
+        @click="handleClear"
+      >
+        ×
       </button>
     </div>
 
     <p id="weather-search-help" class="search-help">
-      등록된 도시는 이름이나 초성으로 검색합니다. 등록되지 않은 지역명을 입력하고 검색하면 새 날씨
-      카드가 추가됩니다. 예: 서울, 대전, ㅅㅇ, ㄷㅈ
+      지역명을 입력하면 잠시 후 자동으로 OpenWeather 검색 결과가 표시됩니다. 초성 검색은 현재
+      대시보드의 도시 필터에만 적용됩니다.
     </p>
-  </form>
+
+    <p v-if="isSearching" class="searching-message" role="status" aria-live="polite">
+      지역과 현재 날씨를 검색하고 있습니다.
+    </p>
+  </div>
 </template>
 
 <style scoped>
@@ -91,24 +83,19 @@ const handleSubmit = () => {
   font-weight: 800;
 }
 
-.search-controls {
-  display: grid;
+.search-input-wrapper {
+  position: relative;
 
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto;
-
-  gap: 10px;
+  width: 100%;
 }
 
 .search-input {
   box-sizing: border-box;
 
   width: 100%;
-  min-width: 0;
   min-height: 48px;
 
-  padding: 11px 14px;
+  padding: 11px 46px 11px 14px;
 
   border: 1px solid #cbd5e1;
   border-radius: 10px;
@@ -135,33 +122,51 @@ const handleSubmit = () => {
   box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
 }
 
-.search-button {
-  min-height: 48px;
-  padding: 10px 18px;
+/**
+ * 브라우저 기본 search 취소 버튼을 숨기고
+ * 프로젝트의 취소 버튼만 사용합니다.
+ */
+.search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
 
-  border: 1px solid #2563eb;
-  border-radius: 10px;
+.clear-button {
+  position: absolute;
+  top: 50%;
+  right: 10px;
 
-  background-color: #2563eb;
-  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 
-  font: inherit;
-  font-size: 14px;
-  font-weight: 800;
+  width: 30px;
+  height: 30px;
 
-  white-space: nowrap;
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+
+  background-color: #f1f5f9;
+  color: #64748b;
+
+  font-size: 22px;
+  line-height: 1;
 
   cursor: pointer;
+
+  transform: translateY(-50%);
 }
 
-.search-button:hover {
-  background-color: #1d4ed8;
+.clear-button:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
 }
 
-.search-button:disabled {
-  opacity: 0.55;
+.clear-button:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 25%);
 
-  cursor: not-allowed;
+  outline-offset: 2px;
 }
 
 .search-help {
@@ -173,13 +178,12 @@ const handleSubmit = () => {
   line-height: 1.6;
 }
 
-@media (max-width: 600px) {
-  .search-controls {
-    grid-template-columns: 1fr;
-  }
+.searching-message {
+  margin: 10px 0 0;
 
-  .search-button {
-    width: 100%;
-  }
+  color: #2563eb;
+
+  font-size: 13px;
+  font-weight: 800;
 }
 </style>
