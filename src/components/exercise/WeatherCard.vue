@@ -1,18 +1,15 @@
 <script setup>
 const props = defineProps({
-  // 도시 날씨 객체
   city: {
     type: Object,
     required: true,
   },
 
-  // 현재 선택된 카드인지 여부
   selected: {
     type: Boolean,
     default: false,
   },
 
-  // 현재 검색어와 일치하는 카드인지 여부
   searched: {
     type: Boolean,
     default: false,
@@ -21,40 +18,22 @@ const props = defineProps({
 
 const emit = defineEmits(['select-card', 'click-detail', 'toggle-favorite'])
 
-/**
- * 카드 전체를 클릭했을 때 실행됩니다.
- */
 const selectCard = () => {
   emit('select-card', props.city)
 }
 
 /**
- * 상세정보 버튼을 클릭했을 때 실행됩니다.
+ * 상세 페이지 이동에 필요한 도시 ID만 전달합니다.
+ *
+ * 객체 전체를 URL로 넘기지 않고,
+ * cityId를 경로 파라미터로 사용합니다.
  */
 const clickDetail = () => {
-  emit('click-detail', props.city)
+  emit('click-detail', props.city.id)
 }
 
-/**
- * 즐겨찾기 버튼을 클릭했을 때 실행됩니다.
- */
 const clickFavorite = () => {
   emit('toggle-favorite', props.city)
-}
-
-/**
- * OpenWeather 아이콘 코드로
- * 날씨 이미지 URL을 생성합니다.
- *
- * 현재는 고정 iconCode를 사용하지만,
- * 향후 API 응답의 icon 값을 그대로 사용할 수 있습니다.
- */
-const getWeatherIconUrl = (iconCode) => {
-  if (!iconCode) {
-    return ''
-  }
-
-  return `https://openweathermap.org/img/wn/${iconCode}@2x.png`
 }
 </script>
 
@@ -69,17 +48,13 @@ const getWeatherIconUrl = (iconCode) => {
   >
     <div class="card-header">
       <div class="city-heading">
-        <img
-          v-if="city.iconCode"
-          :src="getWeatherIconUrl(city.iconCode)"
-          :alt="`${city.description} 날씨 아이콘`"
-          class="weather-icon"
-        />
+        <span class="weather-icon" aria-hidden="true">
+          {{ city.icon }}
+        </span>
 
         <div>
           <h4>{{ city.name }}</h4>
 
-          <!-- 도시가 소속된 지역을 표시 -->
           <p class="region-name">
             {{ city.region }}
           </p>
@@ -97,19 +72,13 @@ const getWeatherIconUrl = (iconCode) => {
       <strong> {{ city.temp }}℃ </strong>
     </p>
 
-    <!-- 과제 조건: 25℃를 기준으로 상태 구분 -->
     <span v-if="city.temp >= 25" class="temperature-badge hot-badge"> 더움 </span>
 
     <span v-else class="temperature-badge cool-badge"> 선선함 </span>
 
-    <!-- 검색어가 입력된 경우에만 검색 결과 안내 표시 -->
     <p v-if="searched" class="searched-message">현재 검색 조건과 일치하는 도시입니다.</p>
 
     <div class="weather-actions">
-      <!--
-        .stop을 사용해 버튼 클릭 시
-        카드 전체 클릭 이벤트가 함께 실행되지 않게 합니다.
-      -->
       <button type="button" class="detail-button" @click.stop="clickDetail">상세정보</button>
 
       <button type="button" class="favorite-button" @click.stop="clickFavorite">
@@ -143,8 +112,6 @@ const getWeatherIconUrl = (iconCode) => {
   box-shadow: 0 12px 28px rgb(15 23 42 / 12%);
 }
 
-/* 카드 헤더 */
-
 .card-header {
   display: flex;
   align-items: flex-start;
@@ -158,11 +125,15 @@ const getWeatherIconUrl = (iconCode) => {
 }
 
 .weather-icon {
-  flex-shrink: 0;
-  width: 62px;
-  height: 62px;
-  margin-left: -10px;
-  object-fit: contain;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 58px;
+  height: 58px;
+  margin-right: 8px;
+
+  font-size: 42px;
 }
 
 .city-heading h4 {
@@ -190,8 +161,6 @@ const getWeatherIconUrl = (iconCode) => {
   font-weight: 700;
 }
 
-/* 현재 기온 */
-
 .temperature {
   display: flex;
   align-items: center;
@@ -206,16 +175,17 @@ const getWeatherIconUrl = (iconCode) => {
   font-size: 25px;
 }
 
-/* 더움 / 선선함 상태 배지 */
-
 .temperature-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
   min-height: 34px;
   padding: 6px 13px;
+
   border: 1px solid;
   border-radius: 999px;
+
   font-size: 14px;
   font-weight: 800;
 }
@@ -232,8 +202,6 @@ const getWeatherIconUrl = (iconCode) => {
   color: #1d4ed8;
 }
 
-/* 선택 카드와 검색 카드 표시 */
-
 .weather-card.selected {
   outline: 3px solid #22c55e;
   background-color: #f0fdf4;
@@ -243,18 +211,12 @@ const getWeatherIconUrl = (iconCode) => {
   border-color: #60a5fa;
 }
 
-.weather-card.selected.searched {
-  background-color: #ecfdf5;
-}
-
 .searched-message {
   margin: 15px 0 0;
   color: #1d4ed8;
   font-size: 13px;
   font-weight: 700;
 }
-
-/* 하단 버튼 */
 
 .weather-actions {
   display: grid;
@@ -267,7 +229,9 @@ const getWeatherIconUrl = (iconCode) => {
   width: 100%;
   min-height: 42px;
   padding: 9px 12px;
+
   border-radius: 8px;
+
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -279,18 +243,10 @@ const getWeatherIconUrl = (iconCode) => {
   color: #ffffff;
 }
 
-.detail-button:hover {
-  background-color: #1e293b;
-}
-
 .favorite-button {
   border: 1px solid #fde68a;
   background-color: #fef3c7;
   color: #92400e;
-}
-
-.favorite-button:hover {
-  background-color: #fde68a;
 }
 
 @media (max-width: 600px) {
