@@ -1,0 +1,226 @@
+/* ========================================
+   공통 페이지 컨테이너
+======================================== */
+
+.page-container {
+  display: grid;
+  gap: 24px;
+
+  box-sizing: border-box;
+
+  width: 100%;
+  max-width: 1440px;
+
+  margin: 0 auto;
+
+  padding: 32px clamp(24px, 5vw, 80px) 56px;
+}
+
+/* ========================================
+   공통 페이지 헤더
+======================================== */
+
+.page-header {
+  display: grid;
+  gap: 8px;
+}
+
+.page-eyebrow,
+.page-title,
+.page-description {
+  margin: 0;
+}
+
+.page-eyebrow {
+  color: #2563eb;
+
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.page-title {
+  color: #0f172a;
+
+  font-size: clamp(28px, 4vw, 42px);
+
+  line-height: 1.2;
+}
+
+.page-description {
+  color: #64748b;
+
+  line-height: 1.7;
+}
+
+/* ========================================
+   공통 버튼
+======================================== */
+
+.primary-button,
+.secondary-button {
+  box-sizing: border-box;
+
+  min-height: 42px;
+  padding: 9px 14px;
+
+  border-radius: 9px;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 1px solid #2563eb;
+
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.primary-button:hover {
+  background-color: #1d4ed8;
+}
+
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  border: 1px solid #cbd5e1;
+
+  background-color: #ffffff;
+  color: #334155;
+}
+
+.secondary-button:hover {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+/* ========================================
+   공통 상태 메시지
+======================================== */
+
+.loading-message,
+.error-box,
+.success-box {
+  margin: 0;
+  padding: 14px 16px;
+
+  border-radius: 10px;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.loading-message {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+
+.error-box {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  background-color: #fef2f2;
+  color: #b91c1c;
+}
+
+.success-box {
+  background-color: #ecfdf5;
+  color: #047857;
+}
+
+.error-box p,
+.success-box p {
+  margin: 0;
+}
+
+/* ========================================
+   공통 날씨 카드 그리드
+======================================== */
+
+.weather-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 32px 22px;
+
+  width: 100%;
+}
+
+.weather-grid > :only-child {
+  width: 100%;
+  max-width: 420px;
+}
+
+/* ========================================
+   공통 빈 상태
+======================================== */
+
+.empty-state {
+  display: grid;
+
+  justify-items: start;
+
+  gap: 14px;
+
+  padding: 30px 0;
+
+  color: #64748b;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+/* ========================================
+   태블릿
+======================================== */
+
+@media (max-width: 1100px) {
+  .weather-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weather-grid > :only-child {
+    max-width: 400px;
+  }
+}
+
+/* ========================================
+   모바일
+======================================== */
+
+@media (max-width: 600px) {
+  .page-container {
+    padding: 24px 18px 40px;
+  }
+
+  .primary-button,
+  .secondary-button {
+    width: 100%;
+  }
+
+  .error-box {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .weather-grid {
+    grid-template-columns: 1fr;
+    row-gap: 32px;
+  }
+
+  .weather-grid > :only-child {
+    max-width: none;
+  }
+}

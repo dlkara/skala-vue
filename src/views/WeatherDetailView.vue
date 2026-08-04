@@ -195,7 +195,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="detail-view">
+  <section class="detail-view page-container">
     <header class="page-header">
       <p class="page-eyebrow">Weather Detail</p>
 
@@ -350,36 +350,6 @@ onMounted(async () => {
   gap: 24px;
 
   width: 100%;
-}
-
-.page-header {
-  display: grid;
-  gap: 8px;
-}
-
-.page-eyebrow,
-.page-title,
-.page-description {
-  margin: 0;
-}
-
-.page-eyebrow {
-  color: #2563eb;
-
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.page-title {
-  color: #0f172a;
-
-  font-size: clamp(28px, 4vw, 42px);
-}
-
-.page-description {
-  color: #64748b;
-
-  line-height: 1.7;
 }
 
 .loading-message {

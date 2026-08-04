@@ -125,7 +125,7 @@ const handleSelect = () => {
 }
 
 const handleDetail = () => {
-  emit('click-detail', props.city.id)
+  emit('click-detail', props.city)
 }
 
 const handleFavorite = () => {

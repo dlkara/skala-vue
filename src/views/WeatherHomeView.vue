@@ -423,7 +423,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="weather-home">
+  <section class="weather-home page-container">
     <!-- ======================================
          페이지 제목
     ======================================= -->
@@ -585,42 +585,6 @@ onMounted(() => {
   margin: 0 auto;
 
   padding: 32px clamp(24px, 5vw, 80px) 56px;
-}
-
-/* ========================================
-   페이지 제목
-======================================== */
-
-.page-header {
-  display: grid;
-  gap: 8px;
-}
-
-.page-eyebrow,
-.page-title,
-.page-description {
-  margin: 0;
-}
-
-.page-eyebrow {
-  color: #2563eb;
-
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.page-title {
-  color: #0f172a;
-
-  font-size: clamp(28px, 4vw, 42px);
-
-  line-height: 1.2;
-}
-
-.page-description {
-  color: #64748b;
-
-  line-height: 1.7;
 }
 
 /* ========================================
