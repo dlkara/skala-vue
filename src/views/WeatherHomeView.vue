@@ -9,7 +9,7 @@ import WeatherCard from '@/components/exercise/WeatherCard.vue'
 
 import { regionLabels } from '@/data/weatherData'
 
-import { weatherList, toggleFavorite } from '@/state/weatherState'
+import { toggleFavorite, weatherList } from '@/state/weatherState'
 
 import { getChosung } from '@/utils/getChosung'
 
@@ -18,8 +18,7 @@ import { getChosung } from '@/utils/getChosung'
 // ========================================
 
 /**
- * 상세정보 버튼을 눌렀을 때
- * 도시 상세 페이지로 이동하기 위해 사용합니다.
+ * 상세 날씨 페이지로 이동할 때 사용합니다.
  */
 const router = useRouter()
 
@@ -28,41 +27,48 @@ const router = useRouter()
 // ========================================
 
 /**
- * 검색창에 입력된 문자열입니다.
+ * 검색창에 입력한 도시 이름 또는 초성입니다.
  */
 const searchQuery = ref('')
 
 /**
  * 현재 선택한 지역 필터입니다.
  *
- * 기본값 all은 전체 지역을 의미합니다.
+ * all은 전체 지역을 의미합니다.
  */
 const selectedRegion = ref('all')
 
 /**
- * 현재 선택된 날씨 카드의 도시 ID입니다.
+ * 현재 선택된 도시의 ID입니다.
  */
 const selectedCityId = ref(null)
+
+/**
+ * 즐겨찾기 변경 결과를
+ * 스크린리더에 전달하는 메시지입니다.
+ */
+const favoriteMessage = ref('')
 
 // ========================================
 // 검색어 변경
 // ========================================
 
 /**
- * SearchBar 컴포넌트에서 전달된 검색어를
- * 부모 컴포넌트 상태에 저장합니다.
+ * SearchBar에서 전달된 검색어를 저장합니다.
+ *
+ * @param {string} newQuery
  */
 const updateSearchQuery = (newQuery) => {
   searchQuery.value = newQuery
 }
 
 // ========================================
-// 1단계: 도시명 및 초성 검색
+// 도시 이름 및 초성 검색
 // ========================================
 
 /**
- * 전체 날씨 데이터에서
- * 도시 이름 또는 초성과 일치하는 도시만 반환합니다.
+ * 전체 날씨 목록에서 도시 이름이나
+ * 한글 초성이 검색어와 일치하는 도시를 반환합니다.
  *
  * 예:
  * 서울 → 서울
@@ -71,13 +77,14 @@ const updateSearchQuery = (newQuery) => {
 const searchedWeatherList = computed(() => {
   const keyword = searchQuery.value.trim()
 
-  // 검색어가 없으면 전체 날씨 목록 반환
+  /**
+   * 검색어가 없으면 전체 도시 목록을 반환합니다.
+   */
   if (keyword === '') {
     return weatherList.value
   }
 
   return weatherList.value.filter((city) => {
-    // 도시 이름에서 초성을 자동으로 추출
     const cityChosung = getChosung(city.name)
 
     return city.name.includes(keyword) || cityChosung.includes(keyword)
@@ -85,72 +92,111 @@ const searchedWeatherList = computed(() => {
 })
 
 // ========================================
-// 2단계: 지역 필터
+// 지역 필터
 // ========================================
 
 /**
- * 검색된 결과에 지역 필터를 추가로 적용합니다.
+ * 도시 검색 결과에 지역 필터를 적용합니다.
  *
  * 처리 순서:
- * 전체 날씨 목록
- * → 도시명 및 초성 검색
+ * 전체 도시
+ * → 이름 및 초성 검색
  * → 지역 필터
- * → 최종 화면 출력
+ * → 화면 출력
  */
 const displayedWeatherList = computed(() => {
-  // 전체 지역을 선택한 경우
-  // 검색 결과를 그대로 반환
   if (selectedRegion.value === 'all') {
     return searchedWeatherList.value
   }
 
-  // 선택한 지역 코드와 같은 도시만 반환
   return searchedWeatherList.value.filter((city) => {
     return city.regionCode === selectedRegion.value
   })
 })
 
 // ========================================
-// 카드 선택
+// 검색 결과 안내
 // ========================================
 
 /**
- * 날씨 카드 전체를 클릭하면
+ * 현재 검색 및 필터 결과를 설명하는 문구입니다.
+ *
+ * 화면에 표시하며, 검색 결과가 변경되면
+ * 스크린리더에서도 안내합니다.
+ */
+const resultMessage = computed(() => {
+  const resultCount = displayedWeatherList.value.length
+
+  if (resultCount === 0) {
+    return '검색 조건에 맞는 도시가 없습니다.'
+  }
+
+  return `${regionLabels[selectedRegion.value]}에서 ${resultCount}개의 도시가 표시되었습니다.`
+})
+
+// ========================================
+// 도시 선택
+// ========================================
+
+/**
+ * 도시 선택 버튼을 누르면
  * 해당 도시를 선택 상태로 변경합니다.
+ *
+ * @param {Object} city
  */
 const selectCity = (city) => {
   selectedCityId.value = city.id
 }
+
+/**
+ * 현재 선택된 도시 이름입니다.
+ */
+const selectedCityName = computed(() => {
+  const selectedCity = weatherList.value.find((city) => {
+    return city.id === selectedCityId.value
+  })
+
+  return selectedCity?.name ?? ''
+})
 
 // ========================================
 // 즐겨찾기
 // ========================================
 
 /**
- * WeatherCard에서 전달받은 도시 객체의 ID를 이용해
- * 공유 상태의 즐겨찾기를 변경합니다.
+ * 도시의 즐겨찾기 상태를 변경합니다.
  *
- * weatherState.js의 weatherList를 수정하므로
- * 홈과 즐겨찾기 페이지에서 같은 상태를 사용합니다.
+ * 변경 결과를 화면에는 추가하지 않고,
+ * 스크린리더용 상태 메시지로 전달합니다.
+ *
+ * @param {Object} city
  */
 const handleToggleFavorite = (city) => {
+  const willBeFavorite = !city.favorite
+
   toggleFavorite(city.id)
+
+  favoriteMessage.value = willBeFavorite
+    ? `${city.name}을 즐겨찾기에 추가했습니다.`
+    : `${city.name}을 즐겨찾기에서 해제했습니다.`
 }
 
 // ========================================
-// 도시 상세 페이지 이동
+// 상세 페이지 이동
 // ========================================
 
 /**
- * 상세정보 버튼을 누르면
- * 도시 ID를 동적 경로 파라미터로 전달합니다.
+ * 선택한 도시의 상세 날씨 페이지로 이동합니다.
  *
  * 예:
  * city_01 → /weather/city_01
+ *
+ * @param {string} cityId
  */
 const moveToDetail = (cityId) => {
   router.push({
     name: 'weather-detail',
+
     params: {
       cityId,
     },
@@ -162,10 +208,12 @@ const moveToDetail = (cityId) => {
 // ========================================
 
 /**
- * 현재 도시가 검색어와 일치하는지 확인합니다.
+ * 현재 카드의 도시가 검색어와 일치하는지 확인합니다.
  *
- * 검색어가 없는 경우에는
- * 검색 강조 상태를 적용하지 않습니다.
+ * 검색어가 없으면 검색 결과 강조를 적용하지 않습니다.
+ *
+ * @param {Object} city
+ * @returns {boolean}
  */
 const isSearchedCity = (city) => {
   const keyword = searchQuery.value.trim()
@@ -178,58 +226,66 @@ const isSearchedCity = (city) => {
 }
 
 // ========================================
-// 선택된 도시 이름
+// 검색 조건 초기화
 // ========================================
 
 /**
- * selectedCityId를 이용해
- * 현재 선택된 도시의 이름을 반환합니다.
+ * 검색어와 지역 필터를 기본 상태로 되돌립니다.
+ *
+ * 템플릿의 @click 안에서 여러 대입문을 작성하지 않아
+ * Vue 표현식 파싱 오류를 방지합니다.
  */
-const selectedCityName = computed(() => {
-  const selectedCity = weatherList.value.find((city) => {
-    return city.id === selectedCityId.value
-  })
-
-  return selectedCity?.name ?? ''
-})
+const resetSearchConditions = () => {
+  searchQuery.value = ''
+  selectedRegion.value = 'all'
+}
 
 // ========================================
 // watch
 // ========================================
 
 /**
- * 선택 도시와 지역 필터를 동시에 감시합니다.
+ * 선택 도시와 지역 필터를 감시합니다.
  *
- * 이전 값과 새로운 값을 비교한 뒤
- * 실제로 변경된 항목만 콘솔에 출력합니다.
+ * 변경된 값을 이전 값과 비교한 뒤
+ * 콘솔에 변경 내용을 출력합니다.
  */
-watch([selectedCityId, selectedRegion], ([newCityId, newRegion], [oldCityId, oldRegion]) => {
-  const changes = []
+watch(
+  [selectedCityId, selectedRegion],
 
-  // 선택 도시가 변경된 경우
-  if (newCityId !== oldCityId) {
-    const newCityName = weatherList.value.find((city) => city.id === newCityId)?.name ?? '선택 없음'
+  (
+    [newCityId, newRegion],
 
-    const oldCityName = weatherList.value.find((city) => city.id === oldCityId)?.name ?? '선택 없음'
+    [oldCityId, oldRegion],
+  ) => {
+    const changes = []
 
-    changes.push(`선택 도시: ${oldCityName} → ${newCityName}`)
-  }
+    if (newCityId !== oldCityId) {
+      const newCityName =
+        weatherList.value.find((city) => city.id === newCityId)?.name ?? '선택 없음'
 
-  // 지역 필터가 변경된 경우
-  if (newRegion !== oldRegion) {
-    changes.push(`지역: ${regionLabels[oldRegion]} → ${regionLabels[newRegion]}`)
-  }
+      const oldCityName =
+        weatherList.value.find((city) => city.id === oldCityId)?.name ?? '선택 없음'
 
-  console.log(`[watch] ${changes.join(' / ')}`)
-})
+      changes.push(`선택 도시: ${oldCityName} → ${newCityName}`)
+    }
+
+    if (newRegion !== oldRegion) {
+      changes.push(`지역: ${regionLabels[oldRegion]} → ${regionLabels[newRegion]}`)
+    }
+
+    if (changes.length > 0) {
+      console.log(`[watch] ${changes.join(' / ')}`)
+    }
+  },
+)
 
 // ========================================
 // watchEffect
 // ========================================
 
 /**
- * 검색어, 선택 지역, 최종 결과 개수를
- * 자동으로 추적해 현재 조회 상태를 출력합니다.
+ * 검색어, 선택 지역, 결과 개수를 자동으로 추적합니다.
  */
 watchEffect(() => {
   const keyword = searchQuery.value.trim() || '전체'
@@ -242,26 +298,47 @@ watchEffect(() => {
 
 <template>
   <div class="weather-page">
-    <main class="weather-container">
-      <!-- 페이지 제목 -->
+    <!--
+      App.vue에 main 요소가 있으므로
+      View 내부에서는 main을 중복 사용하지 않습니다.
+    -->
+    <div class="weather-container">
+      <!-- ========================================
+           페이지 제목
+      ========================================= -->
       <header class="page-header">
         <h1>지역별 날씨 대시보드</h1>
 
         <p>도시 이름이나 초성으로 검색하고, 원하는 지역의 날씨를 확인하세요.</p>
+
+        <!--
+          디지털 환경에 익숙하지 않은 사용자도
+          검색 방법을 이해할 수 있도록 예시를 제공합니다.
+        -->
+        <p class="page-help">
+          도시 이름을 직접 입력하거나 한글 초성을 입력할 수 있습니다. 예: 서울, 대전, ㅅㅇ, ㄷㅈ
+        </p>
       </header>
 
-      <!-- 검색 및 지역 필터 -->
+      <!-- ========================================
+           도시 검색 및 지역 필터
+      ========================================= -->
       <BaseDashboardCard title="도시 검색 및 지역 필터">
         <SearchBar :search-query="searchQuery" @update-query="updateSearchQuery" />
 
         <div class="filter-panel">
           <label for="region-filter" class="filter-label"> 지역 선택 </label>
 
-          <!--
-            selectedRegion과 select 입력값을
-            v-model로 양방향 연결합니다.
-          -->
-          <select id="region-filter" v-model="selectedRegion" class="filter-select">
+          <p id="region-filter-help" class="filter-help">
+            특정 지역의 도시만 확인하려면 아래 목록에서 지역을 선택하세요.
+          </p>
+
+          <select
+            id="region-filter"
+            v-model="selectedRegion"
+            class="filter-select"
+            aria-describedby="region-filter-help"
+          >
             <option value="all">전체 지역</option>
 
             <option value="capital">수도권</option>
@@ -277,17 +354,38 @@ watchEffect(() => {
             <option value="jeju">제주권</option>
           </select>
 
-          <!-- 현재 필터와 결과 개수 -->
           <p class="filter-result">
-            {{ regionLabels[selectedRegion] }}
-            ·
-            {{ displayedWeatherList.length }}개 도시
+            현재 선택:
+            <strong>
+              {{ regionLabels[selectedRegion] }}
+            </strong>
+
+            <span aria-hidden="true"> · </span>
+
+            <span> {{ displayedWeatherList.length }}개 도시 </span>
           </p>
         </div>
       </BaseDashboardCard>
 
-      <!-- 날씨 카드 목록 -->
+      <!-- ========================================
+           날씨 카드 목록
+      ========================================= -->
       <BaseDashboardCard :title="`${regionLabels[selectedRegion]} 날씨 현황`">
+        <!--
+          검색 결과가 변경되면
+          스크린리더가 변경된 도시 개수를 안내합니다.
+        -->
+        <p class="result-status" role="status" aria-live="polite" aria-atomic="true">
+          {{ resultMessage }}
+        </p>
+
+        <!--
+          즐겨찾기 변경 결과를 스크린리더에 전달합니다.
+        -->
+        <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {{ favoriteMessage }}
+        </p>
+
         <div v-if="displayedWeatherList.length > 0" class="weather-grid">
           <WeatherCard
             v-for="city in displayedWeatherList"
@@ -301,17 +399,33 @@ watchEffect(() => {
           />
         </div>
 
-        <!-- 검색 및 지역 필터 결과가 없는 경우 -->
-        <p v-else class="empty-message">선택한 지역과 검색 조건에 일치하는 도시가 없습니다.</p>
+        <!-- 검색 및 필터 결과가 없는 경우 -->
+        <div v-else class="empty-result" role="status">
+          <p class="empty-message">선택한 지역과 검색 조건에 일치하는 도시가 없습니다.</p>
+
+          <p class="empty-help">도시 이름이나 초성을 다시 확인하거나, 전체 지역을 선택해 보세요.</p>
+
+          <button type="button" class="reset-button" @click="resetSearchConditions">
+            검색 조건 초기화
+          </button>
+        </div>
       </BaseDashboardCard>
 
-      <!-- 현재 선택된 도시 -->
-      <p v-if="selectedCityName" class="selected-message">
-        {{ selectedCityName }}이(가) 선택되었습니다.
+      <!-- ========================================
+           선택된 도시 안내
+      ========================================= -->
+      <p v-if="selectedCityName" class="selected-message" role="status" aria-live="polite">
+        <strong>
+          {{ selectedCityName }}
+        </strong>
+        이(가) 선택되었습니다. 상세 기온과 습도, 풍속은 ‘상세 날씨 보기’ 버튼에서 확인할 수
+        있습니다.
       </p>
 
-      <p v-else class="empty-message bottom-message">날씨 카드를 선택해 보세요.</p>
-    </main>
+      <p v-else class="empty-message bottom-message">
+        확인할 도시의 ‘도시 선택’ 버튼을 눌러 보세요.
+      </p>
+    </div>
   </div>
 </template>
 
@@ -350,14 +464,30 @@ watchEffect(() => {
 
 .page-header h1 {
   margin: 0;
+
   color: #172033;
   font-size: clamp(26px, 3vw, 36px);
 }
 
-.page-header p {
+.page-header > p {
   margin: 9px 0 0;
+
   color: #64748b;
   line-height: 1.6;
+}
+
+/*
+  검색 방법을 안내하는 보조 문구입니다.
+*/
+.page-header .page-help {
+  max-width: 720px;
+  margin-top: 12px;
+  padding-left: 12px;
+
+  border-left: 3px solid #93c5fd;
+
+  color: #475569;
+  font-size: 14px;
 }
 
 /* ========================================
@@ -376,10 +506,18 @@ watchEffect(() => {
 
 .filter-label {
   display: block;
-  margin-bottom: 9px;
+  margin-bottom: 6px;
 
   color: #334155;
   font-weight: 700;
+}
+
+.filter-help {
+  margin: 0 0 10px;
+
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .filter-select {
@@ -400,6 +538,10 @@ watchEffect(() => {
   cursor: pointer;
 }
 
+.filter-select:hover {
+  border-color: #94a3b8;
+}
+
 .filter-select:focus {
   border-color: #2563eb;
 
@@ -414,16 +556,53 @@ watchEffect(() => {
   font-weight: 700;
 }
 
+.filter-result strong {
+  color: #334155;
+}
+
 /* ========================================
-   날씨 카드 목록
+   검색 결과 안내
+======================================== */
+
+.result-status {
+  margin: 0 0 18px;
+
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ========================================
+   날씨 카드 그리드
 ======================================== */
 
 .weather-grid {
   display: grid;
 
-  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  /*
+    데스크톱에서는 한 행에 3개의 카드를 표시합니다.
 
-  gap: 22px;
+    auto-fill을 사용하지 않으므로
+    여러 카드가 한 열에만 표시되는 문제를 방지합니다.
+  */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  /*
+    위아래 카드 간격 32px,
+    좌우 카드 간격 22px입니다.
+  */
+  gap: 32px 22px;
+
+  width: 100%;
+}
+
+/*
+  결과가 한 개뿐일 때는 카드가
+  대시보드 전체 너비로 커지지 않도록 제한합니다.
+*/
+.weather-grid > :only-child {
+  width: 100%;
+  max-width: 420px;
 }
 
 /* ========================================
@@ -451,6 +630,12 @@ watchEffect(() => {
 
   background-color: #dcfce7;
   color: #166534;
+
+  line-height: 1.7;
+}
+
+.selected-message strong {
+  color: #14532d;
 }
 
 .bottom-message {
@@ -458,26 +643,98 @@ watchEffect(() => {
 }
 
 /* ========================================
-   반응형
+   검색 결과 없음
 ======================================== */
 
-@media (max-width: 900px) {
+.empty-result {
+  text-align: center;
+}
+
+.empty-help {
+  margin: 12px 0 0;
+
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.reset-button {
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 9px 16px;
+
+  border: 1px solid #2563eb;
+  border-radius: 9px;
+
+  background-color: #2563eb;
+  color: #ffffff;
+
+  font: inherit;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.reset-button:hover {
+  background-color: #1d4ed8;
+}
+
+/* ========================================
+   태블릿
+======================================== */
+
+@media (max-width: 1100px) {
   .weather-page {
     padding: 32px 28px 52px;
   }
 
+  /*
+    태블릿에서는 한 행에 2개의 카드를 표시합니다.
+  */
   .weather-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .weather-grid > :only-child {
+    max-width: 400px;
+  }
 }
+
+/* ========================================
+   모바일
+======================================== */
 
 @media (max-width: 600px) {
   .weather-page {
     padding: 24px 16px 40px;
   }
 
+  /*
+    모바일에서는 한 행에 카드 하나를 표시합니다.
+  */
   .weather-grid {
     grid-template-columns: 1fr;
+    row-gap: 32px;
+  }
+
+  /*
+    모바일에서는 결과가 하나여도
+    사용 가능한 너비를 전부 사용합니다.
+  */
+  .weather-grid > :only-child {
+    max-width: none;
+  }
+
+  .page-header .page-help {
+    padding-left: 10px;
+  }
+
+  .selected-message {
+    text-align: left;
+  }
+
+  .reset-button {
+    width: 100%;
   }
 }
 </style>

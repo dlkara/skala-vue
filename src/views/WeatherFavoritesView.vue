@@ -1,84 +1,85 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+
 import { useRouter } from 'vue-router'
 
-import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
 import WeatherCard from '@/components/exercise/WeatherCard.vue'
 
 import { weatherList, toggleFavorite } from '@/state/weatherState'
 
 const router = useRouter()
 
-/**
- * 전체 날씨 데이터 중 favorite가 true인 도시만 반환합니다.
- */
+const favoriteMessage = ref('')
+
 const favoriteWeatherList = computed(() => {
-  return weatherList.value.filter((city) => {
-    return city.favorite
-  })
+  return weatherList.value.filter((city) => city.favorite)
 })
 
-/**
- * 상세정보 버튼 클릭 시
- * 해당 도시의 동적 상세 경로로 이동합니다.
- */
+const handleToggleFavorite = (city) => {
+  const willBeFavorite = !city.favorite
+
+  toggleFavorite(city.id)
+
+  favoriteMessage.value = willBeFavorite
+    ? `${city.name}을 즐겨찾기에 추가했습니다.`
+    : `${city.name}을 즐겨찾기에서 해제했습니다.`
+}
+
 const moveToDetail = (cityId) => {
   router.push({
     name: 'weather-detail',
+
     params: {
       cityId,
     },
   })
 }
 
-/**
- * 즐겨찾기 페이지에서는 별 표시를 다시 클릭하면
- * 해당 도시가 목록에서 즉시 제거됩니다.
- */
-const handleToggleFavorite = (city) => {
-  toggleFavorite(city.id)
+const selectCity = () => {
+  /**
+   * 즐겨찾기 화면에서는 선택 상태를 별도로
+   * 관리하지 않으므로 비워둡니다.
+   */
 }
 </script>
 
 <template>
   <div class="favorites-page">
-    <main class="favorites-container">
+    <div class="favorites-container">
       <header class="page-header">
-        <div>
-          <p class="eyebrow">FAVORITES</p>
+        <h1>즐겨찾기 도시</h1>
 
-          <h1>즐겨찾는 지역</h1>
-
-          <p>메인 대시보드에서 저장한 도시의 날씨를 한곳에서 확인할 수 있습니다.</p>
-        </div>
-
-        <span class="favorite-count"> {{ favoriteWeatherList.length }}개 도시 </span>
+        <p>관심 있는 도시의 날씨를 한곳에서 확인할 수 있습니다.</p>
       </header>
 
-      <BaseDashboardCard title="즐겨찾기 날씨 현황">
-        <div v-if="favoriteWeatherList.length > 0" class="weather-grid">
-          <WeatherCard
-            v-for="city in favoriteWeatherList"
-            :key="city.id"
-            :city="city"
-            :selected="false"
-            :searched="false"
-            @click-detail="moveToDetail"
-            @toggle-favorite="handleToggleFavorite"
-          />
-        </div>
+      <p class="result-status" role="status" aria-live="polite">
+        즐겨찾기한 도시
+        {{ favoriteWeatherList.length }}개가 표시되었습니다.
+      </p>
 
-        <div v-else class="empty-favorites">
-          <p class="empty-icon">☆</p>
+      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {{ favoriteMessage }}
+      </p>
 
-          <h2>즐겨찾기한 도시가 없습니다.</h2>
+      <div v-if="favoriteWeatherList.length > 0" class="weather-grid">
+        <WeatherCard
+          v-for="city in favoriteWeatherList"
+          :key="city.id"
+          :city="city"
+          @select-card="selectCity"
+          @click-detail="moveToDetail"
+          @toggle-favorite="handleToggleFavorite"
+        />
+      </div>
 
-          <p>메인 대시보드에서 관심 있는 도시를 즐겨찾기에 추가해 보세요.</p>
+      <section v-else class="empty-state">
+        <h2>즐겨찾기한 도시가 없습니다</h2>
 
-          <RouterLink to="/" class="home-link"> 메인 대시보드로 이동 </RouterLink>
-        </div>
-      </BaseDashboardCard>
-    </main>
+        <p>날씨 홈에서 ‘즐겨찾기 추가’ 버튼을 누르면 이곳에서 도시를 모아 볼 수 있습니다.</p>
+
+        <RouterLink to="/" class="home-link"> 날씨 홈으로 이동 </RouterLink>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -86,14 +87,8 @@ const handleToggleFavorite = (city) => {
 .favorites-page {
   min-height: calc(100vh - 70px);
   padding: 40px clamp(24px, 5vw, 80px) 64px;
-  background-color: #f5f7fb;
-  color: #1f2937;
-}
 
-.favorites-page *,
-.favorites-page *::before,
-.favorites-page *::after {
-  box-sizing: border-box;
+  background-color: #f5f7fb;
 }
 
 .favorites-container {
@@ -103,97 +98,85 @@ const handleToggleFavorite = (city) => {
 }
 
 .page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 34px;
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #d97706;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  margin-bottom: 24px;
 }
 
 .page-header h1 {
   margin: 0;
+
   color: #172033;
   font-size: clamp(26px, 3vw, 36px);
 }
 
-.page-header div > p:last-child {
+.page-header p {
   margin: 9px 0 0;
+
   color: #64748b;
   line-height: 1.6;
 }
 
-.favorite-count {
-  flex-shrink: 0;
-  padding: 9px 13px;
-  border-radius: 999px;
-  background-color: #fef3c7;
-  color: #92400e;
-  font-size: 14px;
-  font-weight: 800;
+.result-status {
+  margin: 0 0 20px;
+
+  color: #475569;
+  font-weight: 700;
 }
 
 .weather-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-  gap: 22px;
+
+  grid-template-columns: repeat(auto-fill, minmax(270px, 420px));
+
+  justify-content: start;
+
+  gap: 32px 22px;
 }
 
-.empty-favorites {
-  padding: 44px 20px;
+.empty-state {
+  padding: 48px 24px;
+
+  border: 1px solid #dbe3ee;
+  border-radius: 18px;
+
+  background-color: #ffffff;
+
   text-align: center;
 }
 
-.empty-icon {
+.empty-state h2 {
   margin: 0;
-  color: #d97706;
-  font-size: 54px;
-  line-height: 1;
-}
 
-.empty-favorites h2 {
-  margin: 14px 0 0;
   color: #172033;
-  font-size: 22px;
 }
 
-.empty-favorites > p:not(.empty-icon) {
-  margin: 10px 0 24px;
+.empty-state p {
+  margin: 13px 0 0;
+
   color: #64748b;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .home-link {
-  display: inline-block;
-  padding: 11px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 44px;
+  margin-top: 22px;
+  padding: 9px 17px;
+
   border-radius: 9px;
+
   background-color: #2563eb;
   color: #ffffff;
-  font-weight: 800;
-  text-decoration: none;
-}
 
-@media (max-width: 900px) {
-  .weather-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  font-weight: 850;
+  text-decoration: none;
 }
 
 @media (max-width: 600px) {
   .favorites-page {
     padding: 24px 16px 40px;
-  }
-
-  .page-header {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .weather-grid {

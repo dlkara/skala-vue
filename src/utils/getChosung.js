@@ -1,4 +1,3 @@
-// 한글 초성 목록
 const CHOSUNG_LIST = [
   'ㄱ',
   'ㄲ',
@@ -25,27 +24,23 @@ const CHOSUNG_LIST = [
  * 한글 문자열에서 초성을 추출합니다.
  *
  * 예:
- * getChosung('서울') → 'ㅅㅇ'
- * getChosung('강릉') → 'ㄱㄹ'
+ * 서울 → ㅅㅇ
+ * 부산 → ㅂㅅ
  */
-export const getChosung = (text) => {
-  // 문자열이 아닌 값이 전달되면 빈 문자열 반환
-  if (typeof text !== 'string') {
-    return ''
-  }
-
+export const getChosung = (text = '') => {
   return [...text]
     .map((character) => {
-      // 가(0xAC00)를 기준으로 현재 글자의 위치를 계산
-      const unicode = character.charCodeAt(0) - 0xac00
+      const characterCode = character.charCodeAt(0)
 
-      // 완성형 한글 범위가 아니면 원래 문자 반환
-      if (unicode < 0 || unicode > 11171) {
+      /**
+       * 완성형 한글 범위가 아니면
+       * 원래 문자를 그대로 반환합니다.
+       */
+      if (characterCode < 0xac00 || characterCode > 0xd7a3) {
         return character
       }
 
-      // 한 초성마다 588개의 완성형 한글이 존재
-      const chosungIndex = Math.floor(unicode / 588)
+      const chosungIndex = Math.floor((characterCode - 0xac00) / 588)
 
       return CHOSUNG_LIST[chosungIndex]
     })
