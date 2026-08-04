@@ -4,7 +4,7 @@
   <div class="app">
     <header class="app-header">
       <div class="header-inner">
-        <RouterLink to="/" class="app-logo"> Weather Dashboard </RouterLink>
+        <RouterLink to="/" class="app-logo"> Weather Now </RouterLink>
 
         <nav class="navigation" aria-label="주요 메뉴">
           <RouterLink to="/" class="nav-link"> 날씨 홈 </RouterLink>
