@@ -1,4 +1,6 @@
 <script setup>
+import { Search } from '@element-plus/icons-vue'
+
 defineProps({
   query: {
     type: String,
@@ -9,62 +11,81 @@ defineProps({
     type: Boolean,
     default: false,
   },
+
+  canSearch: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['update-query', 'clear'])
+const emit = defineEmits(['update-query', 'search'])
 
 /**
  * 입력값이 변경될 때마다
  * 부모에게 검색어를 전달합니다.
  */
-const handleInput = (event) => {
-  emit('update-query', event.target.value)
+const handleInput = (value) => {
+  emit('update-query', value)
 }
 
 /**
- * 검색어 삭제 버튼입니다.
+ * Element Plus 입력창은 한글을 조합하는 동안 model-value 갱신을 미룹니다.
+ * 조합 중인 실제 입력값도 전달해 두 번째 글자부터 검색 버튼이 바로 활성화되게 합니다.
  */
-const handleClear = () => {
-  emit('clear')
+const handleCompositionInput = (event) => {
+  const composingValue = event.target?.value
+
+  if (typeof composingValue === 'string') {
+    emit('update-query', composingValue)
+  }
+}
+
+/**
+ * Enter 키 또는 검색 버튼으로
+ * 부모의 지역 검색을 실행합니다.
+ */
+const handleSubmit = () => {
+  emit('search')
 }
 </script>
 
 <template>
-  <div class="search-bar">
-    <label for="weather-city-search" class="search-label"> 도시 검색 </label>
-
-    <div class="search-input-wrapper">
-      <input
+  <form class="search-bar" role="search" aria-label="도시 검색" @submit.prevent="handleSubmit">
+    <div class="search-input-layout">
+      <el-input
         id="weather-city-search"
-        :value="query"
-        type="search"
-        class="search-input"
-        placeholder="예: 부산, 광주, Tokyo"
+        :model-value="query"
+        type="text"
+        size="large"
+        class="city-search-input"
+        placeholder="예: 판교, 발산, 내발산동"
         autocomplete="off"
         aria-describedby="weather-search-help"
-        @input="handleInput"
+        @update:model-value="handleInput"
+        @compositionupdate="handleCompositionInput"
+        @compositionend="handleCompositionInput"
+        @keyup.enter.prevent="handleSubmit"
       />
 
-      <button
-        v-if="query"
-        type="button"
-        class="clear-button"
-        aria-label="검색어 삭제"
-        @click="handleClear"
+      <el-button
+        native-type="submit"
+        type="primary"
+        size="large"
+        class="search-button"
+        :icon="Search"
+        :loading="isSearching"
+        :disabled="isSearching || !canSearch"
       >
-        ×
-      </button>
+        새 지역 찾기
+      </el-button>
     </div>
 
     <p id="weather-search-help" class="search-help">
-      지역명을 입력하면 잠시 후 자동으로 OpenWeather 검색 결과가 표시됩니다. 초성 검색은 현재
-      대시보드의 도시 필터에만 적용됩니다.
+      저장한 지역과 국내 행정구역을 이름·초성으로 찾을 수 있습니다.
+      <br />
+      두 글자 이상 입력한 뒤 Enter 또는 새 지역 찾기 버튼을 사용하세요.
     </p>
-
-    <p v-if="isSearching" class="searching-message" role="status" aria-live="polite">
-      지역과 현재 날씨를 검색하고 있습니다.
-    </p>
-  </div>
+  </form>
 </template>
 
 <style scoped>
@@ -83,90 +104,22 @@ const handleClear = () => {
   font-weight: 800;
 }
 
-.search-input-wrapper {
-  position: relative;
-
-  width: 100%;
+.search-input-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
-.search-input {
-  box-sizing: border-box;
-
+.city-search-input {
   width: 100%;
+  --el-component-size-large: 48px;
+}
+
+.search-button {
+  min-width: 116px;
   min-height: 48px;
-
-  padding: 11px 46px 11px 14px;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-
-  background-color: #ffffff;
-  color: #1e293b;
-
-  font: inherit;
-}
-
-.search-input::placeholder {
-  color: #94a3b8;
-}
-
-.search-input:hover {
-  border-color: #94a3b8;
-}
-
-.search-input:focus {
-  border-color: #2563eb;
-
-  outline: none;
-
-  box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
-}
-
-/**
- * 브라우저 기본 search 취소 버튼을 숨기고
- * 프로젝트의 취소 버튼만 사용합니다.
- */
-.search-input::-webkit-search-cancel-button {
-  appearance: none;
-}
-
-.clear-button {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 30px;
-  height: 30px;
-
-  padding: 0;
-
-  border: 0;
-  border-radius: 50%;
-
-  background-color: #f1f5f9;
-  color: #64748b;
-
-  font-size: 22px;
-  line-height: 1;
-
-  cursor: pointer;
-
-  transform: translateY(-50%);
-}
-
-.clear-button:hover {
-  background-color: #e2e8f0;
-  color: #0f172a;
-}
-
-.clear-button:focus-visible {
-  outline: 3px solid rgb(37 99 235 / 25%);
-
-  outline-offset: 2px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .search-help {
@@ -178,12 +131,13 @@ const handleClear = () => {
   line-height: 1.6;
 }
 
-.searching-message {
-  margin: 10px 0 0;
+@media (max-width: 480px) {
+  .search-input-layout {
+    grid-template-columns: 1fr;
+  }
 
-  color: #2563eb;
-
-  font-size: 13px;
-  font-weight: 800;
+  .search-button {
+    width: 100%;
+  }
 }
 </style>

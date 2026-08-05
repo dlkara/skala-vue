@@ -15,6 +15,7 @@
 .dashboard-card {
   position: relative;
 
+  min-width: 0;
   width: 100%;
   padding: 28px;
 

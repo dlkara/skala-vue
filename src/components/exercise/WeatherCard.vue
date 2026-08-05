@@ -1,8 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 
+import { Delete, Star, StarFilled, View } from '@element-plus/icons-vue'
+
 import { useTemperature } from '@/composables/useTemperature'
 
+import { withObjectParticle } from '@/utils/formatKoreanParticle'
 import { getWeatherIconUrl } from '@/utils/getWeatherIconUrl'
 
 // ========================================
@@ -18,6 +21,16 @@ const props = defineProps({
   selected: {
     type: Boolean,
     default: false,
+  },
+
+  compact: {
+    type: Boolean,
+    default: false,
+  },
+
+  removable: {
+    type: Boolean,
+    default: true,
   },
 })
 
@@ -75,30 +88,32 @@ const handleRemove = () => {
     class="weather-card"
     :class="{
       selected,
+      'weather-card-current': city.isCurrentLocation,
+      'weather-card-compact': compact,
+      'weather-card-no-remove': !removable,
     }"
   >
     <!-- 카드의 날씨 정보 선택 영역 -->
-    <button type="button" class="card-main-button" :aria-pressed="selected" @click="handleSelect">
+    <button
+      type="button"
+      class="card-main-button"
+      :aria-pressed="selected"
+      @click="handleSelect"
+    >
       <div class="card-header">
         <div class="city-heading">
-          <p class="city-region">
-            {{ city.region }}
-          </p>
+          <div class="city-region-line">
+            <p class="city-region">
+              {{ city.isCurrentLocation ? '현재 위치' : city.region }}
+            </p>
+          </div>
 
           <h3 class="city-name">
             {{ city.name }}
           </h3>
 
-          <p v-if="city.state || city.countryCode" class="city-location">
-            <span v-if="city.state">
-              {{ city.state }}
-            </span>
-
-            <span v-if="city.state && city.countryCode" aria-hidden="true"> · </span>
-
-            <span>
-              {{ city.countryCode }}
-            </span>
+          <p v-if="city.state && city.state !== city.name" class="city-location">
+            {{ city.state }}
           </p>
         </div>
 
@@ -125,7 +140,13 @@ const handleRemove = () => {
 
     <!-- 카드 내부 기능 버튼 -->
     <div class="card-actions">
-      <button type="button" class="detail-button" @click.stop="handleDetail">상세 날씨 보기</button>
+      <button type="button" class="detail-button" @click.stop="handleDetail">
+        <el-icon class="action-icon" aria-hidden="true">
+          <View />
+        </el-icon>
+
+        {{ compact ? '상세' : '상세 보기' }}
+      </button>
 
       <button
         type="button"
@@ -137,20 +158,36 @@ const handleRemove = () => {
         :aria-label="city.favorite ? `${city.name} 즐겨찾기 해제` : `${city.name} 즐겨찾기 추가`"
         @click.stop="handleFavorite"
       >
-        <span aria-hidden="true">
-          {{ city.favorite ? '★' : '☆' }}
-        </span>
+        <el-icon class="action-icon" aria-hidden="true">
+          <StarFilled v-if="city.favorite" />
+          <Star v-else />
+        </el-icon>
 
-        {{ city.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가' }}
+        <span>
+          {{
+            compact
+              ? city.favorite
+                ? '해제'
+                : '즐겨찾기'
+              : city.favorite
+                ? '해제'
+                : '즐겨찾기'
+          }}
+        </span>
       </button>
 
       <button
+        v-if="!city.isCurrentLocation && removable"
         type="button"
         class="remove-button"
-        :aria-label="`${city.name}을 대시보드에서 삭제`"
+        :aria-label="`${withObjectParticle(city.name)} 대시보드에서 삭제`"
         @click.stop="handleRemove"
       >
-        대시보드에서 삭제
+        <el-icon class="action-icon" aria-hidden="true">
+          <Delete />
+        </el-icon>
+
+        {{ compact ? '삭제' : '대시보드에서 삭제' }}
       </button>
     </div>
   </article>
@@ -184,6 +221,88 @@ const handleRemove = () => {
   border-color: #2563eb;
 
   box-shadow: 0 0 0 3px rgb(37 99 235 / 14%);
+}
+
+.weather-card-current {
+  border-color: #bfdbfe;
+
+  background: linear-gradient(145deg, #ffffff 58%, #eff6ff 100%);
+}
+
+.weather-card-compact .card-main-button {
+  padding: 15px 16px 12px;
+}
+
+.weather-card-compact .card-header {
+  align-items: center;
+}
+
+.weather-card-compact .city-name {
+  margin-top: 3px;
+  font-size: 17px;
+}
+
+.weather-card-compact .city-location,
+.weather-card-compact .city-region {
+  font-size: 11px;
+}
+
+.weather-card-compact .weather-icon {
+  width: 46px;
+  height: 46px;
+}
+
+.weather-card-compact .weather-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.weather-card-compact .temperature {
+  font-size: 27px;
+}
+
+.weather-card-compact .weather-description {
+  margin-top: 0;
+  font-size: 12px;
+  text-align: right;
+}
+
+.weather-card-compact .card-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding: 0 16px 14px;
+}
+
+.weather-card-compact.weather-card-no-remove .card-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.weather-card-compact .detail-button,
+.weather-card-compact .favorite-button,
+.weather-card-compact .remove-button {
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.weather-card-compact .detail-button {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.weather-card-compact .detail-button:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+
+.weather-card-compact .remove-button {
+  border-color: #fecaca;
+  background: #fff7f7;
+  grid-column: auto;
 }
 
 .card-main-button {
@@ -223,6 +342,16 @@ const handleRemove = () => {
 
 .city-heading {
   min-width: 0;
+}
+
+.city-region-line {
+  display: flex;
+
+  align-items: center;
+
+  flex-wrap: wrap;
+
+  gap: 7px;
 }
 
 .city-region,
@@ -303,6 +432,11 @@ const handleRemove = () => {
 .detail-button,
 .favorite-button,
 .remove-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
   min-height: 42px;
 
   padding: 9px 12px;
@@ -314,6 +448,11 @@ const handleRemove = () => {
   font-weight: 800;
 
   cursor: pointer;
+}
+
+.action-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
 }
 
 .detail-button {

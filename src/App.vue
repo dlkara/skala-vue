@@ -37,9 +37,13 @@ watch(
         <nav class="navigation" aria-label="주요 메뉴">
           <RouterLink to="/" class="nav-link"> 날씨 홈 </RouterLink>
 
-          <RouterLink to="/favorites" class="nav-link"> 즐겨찾기 </RouterLink>
+          <RouterLink to="/saved" class="nav-link"> 저장한 지역 </RouterLink>
 
           <RouterLink to="/about" class="nav-link"> 서비스 소개 </RouterLink>
+
+          <RouterLink to="/project" class="nav-link nav-link--project">
+            <span>프로젝트 소개</span>
+          </RouterLink>
         </nav>
 
         <!-- 온도 단위 변경 -->
@@ -199,6 +203,49 @@ watch(
   color: #1d4ed8;
 }
 
+/*
+  프로젝트 소개는 서비스 이용 메뉴가 아닌 개발 문서이므로
+  구분선과 별도 라벨을 사용해 하나의 독립된 링크로 표현합니다.
+*/
+.nav-link--project {
+  position: relative;
+
+  min-height: 38px;
+  margin-left: 10px;
+  padding: 6px 11px;
+
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+
+  background-color: #ffffff;
+}
+
+.nav-link--project::before {
+  position: absolute;
+  top: 50%;
+  left: -17px;
+
+  width: 1px;
+  height: 24px;
+
+  background-color: #dbe3ee;
+
+  content: '';
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.nav-link--project:hover {
+  border-color: #bfdbfe;
+  background-color: #f8fbff;
+  color: #1d4ed8;
+}
+
+.nav-link--project.router-link-exact-active {
+  border-color: #bfdbfe;
+  background-color: #eff6ff;
+}
+
 /* ========================================
    본문
 ======================================== */
@@ -295,18 +342,36 @@ watch(
   .nav-link {
     flex: 1 0 auto;
   }
+
+  .nav-link--project {
+    flex-grow: 0;
+  }
 }
 
 @media (max-width: 430px) {
   .navigation {
-    gap: 2px;
+    gap: 4px;
   }
 
   .nav-link {
-    padding-right: 10px;
-    padding-left: 10px;
+    flex: 0 0 auto;
 
-    font-size: 13px;
+    padding-right: 8px;
+    padding-left: 8px;
+
+    font-size: 12px;
   }
+
+  .nav-link--project {
+    min-height: 36px;
+    margin-left: 22px;
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  .nav-link--project::before {
+    left: -17px;
+  }
+
 }
 </style>

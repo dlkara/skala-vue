@@ -32,14 +32,14 @@ const handleToggleUnit = () => {
       </strong>
     </p>
 
-    <button
-      type="button"
+    <el-button
+      type="primary"
       class="unit-button"
       :aria-label="`날씨 단위를 ${configStore.nextUnitLabel}로 변경`"
       @click="handleToggleUnit"
     >
       단위 변경
-    </button>
+    </el-button>
 
     <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
       {{ unitChangeMessage }}
@@ -70,24 +70,10 @@ const handleToggleUnit = () => {
 
 .unit-button {
   min-height: 44px;
-  padding: 8px 13px;
-
-  border: 1px solid #2563eb;
-  border-radius: 9px;
-
-  background-color: #2563eb;
-  color: #ffffff;
-
-  font: inherit;
   font-size: 13px;
   font-weight: 800;
 
   white-space: nowrap;
-  cursor: pointer;
-}
-
-.unit-button:hover {
-  background-color: #1d4ed8;
 }
 
 /*

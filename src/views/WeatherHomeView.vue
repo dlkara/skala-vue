@@ -1,270 +1,159 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import { storeToRefs } from 'pinia'
+
+import { ElMessage } from 'element-plus'
+import { Loading, Location, Refresh, Setting } from '@element-plus/icons-vue'
 
 import { useRouter } from 'vue-router'
 
 import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
+import KoreaWeatherMap from '@/components/exercise/KoreaWeatherMap.vue'
 import SearchBar from '@/components/exercise/SearchBar.vue'
 import WeatherCard from '@/components/exercise/WeatherCard.vue'
 
 import { useWeatherStore } from '@/stores/weatherStore'
 
+import { withObjectParticle } from '@/utils/formatKoreanParticle'
 import { getChosung } from '@/utils/getChosung'
 
-// ========================================
-// Router 및 Store
-// ========================================
-
 const router = useRouter()
-
 const weatherStore = useWeatherStore()
 
 const {
   weatherList,
   searchResults,
-
+  currentLocationStatus,
+  currentLocationMessage,
+  isLocatingCurrentPosition,
   isLoading,
   isSearching,
-
   errorMessage,
   searchErrorMessage,
-
   formattedLastUpdatedAt,
 } = storeToRefs(weatherStore)
 
-// ========================================
-// 화면 상태
-// ========================================
-
 const searchQuery = ref('')
-
-const selectedRegion = ref('all')
-
 const selectedCityId = ref(null)
-
 const actionMessage = ref('')
-
+const actionMessageType = ref('success')
 const favoriteMessage = ref('')
+const addingLocationId = ref('')
+const isAllSavedCitiesVisible = ref(false)
 
-/**
- * 자동 API 검색용 setTimeout ID입니다.
- */
-let searchTimer = null
-
-// ========================================
-// 지역 필터
-// ========================================
-
-const regionLabels = {
-  all: '전체 지역',
-  capital: '수도권',
-  chungcheong: '충청권',
-  jeju: '제주권',
-  searched: '검색 추가 지역',
-}
-
-const regionOptions = computed(() => {
-  const usedRegionCodes = new Set(weatherList.value.map((city) => city.regionCode))
-
-  return Object.entries(regionLabels)
-    .filter(([value]) => {
-      return value === 'all' || usedRegionCodes.has(value)
-    })
-    .map(([value, label]) => ({
-      value,
-      label,
-    }))
+const currentLocationCity = computed(() => {
+  return weatherList.value.find((city) => city.isCurrentLocation) || null
 })
 
-// ========================================
-// 검색어 분석
-// ========================================
-
-const normalizedSearchQuery = computed(() => {
-  return searchQuery.value.trim().toLowerCase()
+const savedWeatherList = computed(() => {
+  return weatherList.value.filter((city) => {
+    return !city.isCurrentLocation && city.countryCode?.trim().toUpperCase() === 'KR'
+  })
 })
 
-const isChosungQuery = computed(() => {
-  const query = searchQuery.value.trim()
-
-  return query.length > 0 && /^[ㄱ-ㅎ]+$/.test(query)
+const favoriteSavedWeatherList = computed(() => {
+  return savedWeatherList.value.filter((city) => city.favorite)
 })
 
-/**
- * 대시보드에 이미 등록된 카드의
- * 검색 및 지역 필터 결과입니다.
- */
-const filteredWeatherList = computed(() => {
+const visibleFavoriteWeatherList = computed(() => {
+  return isAllSavedCitiesVisible.value
+    ? favoriteSavedWeatherList.value
+    : favoriteSavedWeatherList.value.slice(0, 4)
+})
+
+const hiddenFavoriteCityCount = computed(() => {
+  return Math.max(
+    0,
+    favoriteSavedWeatherList.value.length - visibleFavoriteWeatherList.value.length,
+  )
+})
+
+const normalizedSearchQuery = computed(() => searchQuery.value.trim().toLowerCase())
+
+const canSearch = computed(() => {
+  return searchQuery.value.trim().length >= 2
+})
+
+const matchingDashboardWeather = computed(() => {
   const query = normalizedSearchQuery.value
 
+  if (!query) {
+    return []
+  }
+
   return weatherList.value.filter((city) => {
-    const matchesRegion = selectedRegion.value === 'all' || city.regionCode === selectedRegion.value
+    const searchableText = [city.name, city.apiName, city.state]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    const cityChosung = getChosung([city.name, city.state].filter(Boolean).join(' '))
 
-    if (!matchesRegion) {
-      return false
-    }
-
-    if (!query) {
-      return true
-    }
-
-    const cityName = city.name?.toLowerCase() || ''
-
-    const apiName = city.apiName?.toLowerCase() || ''
-
-    const state = city.state?.toLowerCase() || ''
-
-    const cityChosung = getChosung(city.name || '')
-
-    return (
-      cityName.includes(query) ||
-      apiName.includes(query) ||
-      state.includes(query) ||
-      cityChosung.includes(query)
-    )
+    return searchableText.includes(query) || cityChosung.includes(query)
   })
 })
 
 const selectedCity = computed(() => {
-  if (!selectedCityId.value) {
-    return null
+  return weatherList.value.find((city) => city.id === selectedCityId.value) || null
+})
+
+const currentLocationAlertType = computed(() => {
+  if (currentLocationStatus.value === 'ready') {
+    return 'success'
   }
 
-  return weatherList.value.find((city) => {
-    return city.id === selectedCityId.value
-  })
+  if (currentLocationStatus.value === 'fallback') {
+    return 'warning'
+  }
+
+  return 'info'
 })
 
-const resultMessage = computed(() => {
-  return `${filteredWeatherList.value.length}개의 ` + '도시가 표시되었습니다.'
-})
-
-const shouldShowSearchResults = computed(() => {
-  return searchQuery.value.trim().length > 0 && !isChosungQuery.value
-})
-
-// ========================================
-// 검색 결과 표시 함수
-// ========================================
-
-/**
- * 행정구역 표시값을 반환합니다.
- */
 const getAdministrativeArea = (result) => {
-  if (result.administrativeArea) {
-    return result.administrativeArea
-  }
-
-  if (result.state && result.countryCode) {
-    return `${result.state} · ` + result.countryCode
-  }
-
-  if (result.state) {
-    return result.state
-  }
-
-  if (result.countryCode) {
-    return `행정구역 정보 없음 · ` + result.countryCode
-  }
-
-  return '행정구역 정보 없음'
+  return result.administrativeArea || [result.state, result.countryCode].filter(Boolean).join(' · ')
 }
 
-/**
- * 좌표를 소수점 넷째 자리까지 표시합니다.
- */
 const formatCoordinate = (coordinate) => {
   const numberCoordinate = Number(coordinate)
 
-  if (Number.isNaN(numberCoordinate)) {
-    return '-'
-  }
-
-  return numberCoordinate.toFixed(4)
-}
-
-// ========================================
-// 자동 API 검색
-// ========================================
-
-const clearSearchTimer = () => {
-  if (!searchTimer) {
-    return
-  }
-
-  clearTimeout(searchTimer)
-
-  searchTimer = null
+  return Number.isFinite(numberCoordinate) ? numberCoordinate.toFixed(4) : '-'
 }
 
 const handleSearchQuery = (newQuery) => {
   searchQuery.value = newQuery
-
   actionMessage.value = ''
-}
-
-const clearSearch = () => {
-  clearSearchTimer()
-
-  searchQuery.value = ''
-  selectedCityId.value = null
-
-  actionMessage.value = ''
-
   weatherStore.clearSearchResults()
 }
 
-/**
- * 검색어가 변경되면 600ms 후
- * OpenWeather API를 자동 호출합니다.
- */
-watch(searchQuery, (newQuery) => {
-  clearSearchTimer()
-
-  const normalizedQuery = newQuery.trim()
-
-  weatherStore.clearSearchResults()
-
-  if (!normalizedQuery) {
+const handleSearch = async () => {
+  if (!canSearch.value) {
     return
   }
 
-  if (/^[ㄱ-ㅎ]+$/.test(normalizedQuery)) {
-    return
-  }
-
-  if (normalizedQuery.length < 2) {
-    return
-  }
-
-  searchTimer = setTimeout(() => {
-    weatherStore.searchLocation(normalizedQuery)
-  }, 600)
-})
-
-// ========================================
-// 검색 결과 추가
-// ========================================
+  actionMessage.value = ''
+  await weatherStore.searchLocation(searchQuery.value.trim())
+}
 
 const handleAddLocation = async (candidate) => {
   actionMessage.value = ''
+  addingLocationId.value = candidate.id
 
-  const result = await weatherStore.addLocation(candidate)
+  try {
+    const result = await weatherStore.addLocation(candidate)
 
-  actionMessage.value = result.message
+    actionMessage.value = result.message
+    actionMessageType.value = result.success ? 'success' : 'warning'
 
-  if (result.success) {
-    selectedRegion.value = 'all'
-
-    selectedCityId.value = candidate.id
+    if (result.success) {
+      selectedCityId.value = result.locationId || candidate.id
+      ElMessage.success(result.message)
+    } else {
+      ElMessage.warning(result.message)
+    }
+  } finally {
+    addingLocationId.value = ''
   }
 }
-
-// ========================================
-// 카드 이벤트
-// ========================================
 
 const handleSelectCity = (city) => {
   selectedCityId.value = city.id
@@ -272,438 +161,493 @@ const handleSelectCity = (city) => {
 
 const moveToDetail = (cityId) => {
   if (!cityId) {
-    console.error('상세 페이지 이동 실패: 도시 ID가 없습니다.')
-
     return
   }
 
   router.push({
     name: 'weather-detail',
-
-    params: {
-      cityId,
-    },
+    params: { cityId },
   })
+}
+
+const moveToSavedLocations = () => {
+  router.push({ name: 'weather-saved' })
 }
 
 const handleToggleFavorite = (city) => {
   const willBeFavorite = !city.favorite
 
   weatherStore.toggleFavorite(city.id)
-
   favoriteMessage.value = willBeFavorite
-    ? `${city.name}을 즐겨찾기에 추가했습니다.`
-    : `${city.name}을 즐겨찾기에서 해제했습니다.`
+    ? `${withObjectParticle(city.name)} 즐겨찾기에 추가했습니다.`
+    : `${withObjectParticle(city.name)} 즐겨찾기에서 해제했습니다.`
+  ElMessage.success(favoriteMessage.value)
 }
 
-const handleRemoveLocation = (city) => {
-  const confirmed = window.confirm(`${city.name}을 대시보드에서 삭제하시겠습니까?`)
-
-  if (!confirmed) {
-    return
-  }
-
-  const result = weatherStore.removeLocation(city.id)
-
-  actionMessage.value = result.message
-
-  if (selectedCityId.value === city.id) {
-    selectedCityId.value = null
-  }
-
-  const regionStillExists = weatherList.value.some((weatherCity) => {
-    return weatherCity.regionCode === selectedRegion.value
-  })
-
-  if (selectedRegion.value !== 'all' && !regionStillExists) {
-    selectedRegion.value = 'all'
-  }
-}
-
-const resetFilters = () => {
-  clearSearch()
-
-  selectedRegion.value = 'all'
-
-  selectedCityId.value = null
-
-  actionMessage.value = ''
-}
-
-// ========================================
-// 생명주기
-// ========================================
-
-onMounted(() => {
-  weatherStore.fetchAllWeather()
-})
-
-onBeforeUnmount(() => {
-  clearSearchTimer()
+onMounted(async () => {
+  weatherStore.preloadKoreanAdministrativeAreaList()
+  await weatherStore.fetchAllWeather()
+  weatherStore.refreshCurrentLocation()
 })
 </script>
 
 <template>
   <section class="weather-home page-container">
-    <!-- ======================================
-         페이지 제목
-    ======================================= -->
+    <header class="page-header home-page-header">
+      <div class="page-heading-copy">
+        <p class="page-eyebrow">Weather Dashboard</p>
+        <h1 class="page-title">실시간 날씨 대시보드</h1>
+        <p class="page-description">
+          현재 위치의 날씨를 확인하고, 국내 지역을 검색해 나만의 대시보드를 구성해 보세요.
+        </p>
+      </div>
 
-    <header class="page-header">
-      <p class="page-eyebrow">Weather Dashboard</p>
-
-      <h1 class="page-title">실시간 날씨 대시보드</h1>
-
-      <p class="page-description">
-        지역을 자동 검색하고 원하는 결과만 대시보드에 추가할 수 있습니다.
-      </p>
+      <el-alert
+        v-if="
+          !isLocatingCurrentPosition &&
+          currentLocationStatus === 'fallback' &&
+          currentLocationMessage
+        "
+        class="header-location-alert"
+        :title="currentLocationMessage"
+        :type="currentLocationAlertType"
+        :closable="false"
+        show-icon
+      />
     </header>
 
-    <!-- ======================================
-         검색 및 지역 필터
-    ======================================= -->
+    <div class="home-dashboard-layout">
+      <BaseDashboardCard class="current-location-panel" title="현재 위치 날씨">
+        <div class="current-location-heading">
+          <h2 class="panel-title current-location-title">현재 위치 날씨</h2>
 
-    <BaseDashboardCard title="도시 검색 및 지역 필터">
-      <div class="filter-layout">
-        <div class="search-area">
-          <SearchBar
-            :query="searchQuery"
-            :is-searching="isSearching"
-            @update-query="handleSearchQuery"
-            @clear="clearSearch"
-          />
-        </div>
-
-        <div class="region-area">
-          <label for="region-filter" class="form-label"> 대시보드 지역 필터 </label>
-
-          <select id="region-filter" v-model="selectedRegion" class="region-select">
-            <option v-for="option in regionOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-
-        <button type="button" class="secondary-button reset-button" @click="resetFilters">
-          검색 및 필터 초기화
-        </button>
-      </div>
-
-      <p v-if="searchQuery.trim().length === 1 && !isChosungQuery" class="input-guide">
-        API 자동 검색은 두 글자 이상 입력하면 시작됩니다.
-      </p>
-
-      <p v-if="isChosungQuery" class="input-guide">
-        초성 검색은 현재 대시보드 카드에만 적용됩니다.
-      </p>
-
-      <p v-if="searchErrorMessage" class="message message-error" role="alert">
-        {{ searchErrorMessage }}
-      </p>
-
-      <p v-if="actionMessage" class="message message-success" role="status" aria-live="polite">
-        {{ actionMessage }}
-      </p>
-
-      <!-- ==================================
-           자동 API 검색 결과
-      =================================== -->
-
-      <section
-        v-if="shouldShowSearchResults"
-        class="api-search-section"
-        aria-labelledby="
-          api-search-result-title
-        "
-      >
-        <div class="search-result-heading">
-          <div>
-            <h2
-              id="
-                api-search-result-title
-              "
-            >
-              지역 검색 결과
-            </h2>
-
-            <p>행정구역과 좌표를 확인한 후 추가 버튼을 눌러주세요.</p>
-          </div>
-
-          <span v-if="searchResults.length > 0" class="result-count">
-            {{ searchResults.length }}개
-          </span>
-        </div>
-
-        <div v-if="searchResults.length > 0" class="api-result-list">
-          <article v-for="result in searchResults" :key="result.id" class="api-result-item">
-            <div class="api-result-main">
-              <img
-                v-if="result.weather?.icon"
-                :src="`https://openweathermap.org/img/wn/${result.weather.icon}@2x.png`"
-                alt=""
-                class="result-weather-icon"
-              />
-
-              <div class="result-location">
-                <h3>
-                  {{ result.name }}
-                </h3>
-
-                <!-- 행정구역 -->
-                <p class="result-administrative-area">
-                  {{ getAdministrativeArea(result) }}
-                </p>
-
-                <!-- 좌표 -->
-                <p class="result-coordinate">
-                  위도
-                  {{ formatCoordinate(result.coord?.lat) }}
-
-                  <span aria-hidden="true"> · </span>
-
-                  경도
-                  {{ formatCoordinate(result.coord?.lon) }}
-                </p>
-
-                <p class="result-description">
-                  {{ result.weather?.description || '날씨 정보 없음' }}
-                </p>
-              </div>
-            </div>
-
-            <div class="api-result-actions">
-              <p class="result-temperature">{{ Math.round(result.main?.temp) }}℃</p>
-
-              <button
-                type="button"
-                class="add-location-button"
-                :disabled="result.isAdded"
-                @click="handleAddLocation(result)"
-              >
-                {{ result.isAdded ? '추가됨' : '대시보드에 추가' }}
-              </button>
-            </div>
-          </article>
-        </div>
-
-        <p v-else-if="!isSearching && !searchErrorMessage" class="waiting-message">
-          검색 결과를 기다리고 있습니다.
-        </p>
-      </section>
-    </BaseDashboardCard>
-
-    <!-- ======================================
-         대시보드 날씨 카드
-    ======================================= -->
-
-    <BaseDashboardCard title="현재 날씨">
-      <div class="weather-status">
-        <p v-if="isLoading" class="loading-message" role="status" aria-live="polite">
-          실시간 날씨 정보를 불러오고 있습니다.
-        </p>
-
-        <div v-else-if="errorMessage" class="error-box" role="alert">
-          <p>
-            {{ errorMessage }}
-          </p>
-
-          <button type="button" class="primary-button" @click="weatherStore.refreshWeather()">
-            다시 불러오기
-          </button>
-        </div>
-
-        <div v-else class="weather-update">
-          <p>
-            OpenWeather의 실시간 날씨를 표시하고 있습니다.
-
-            <span v-if="formattedLastUpdatedAt">
-              마지막 갱신:
-              {{ formattedLastUpdatedAt }}
-            </span>
-          </p>
-
-          <button
-            type="button"
-            class="primary-button"
-            :disabled="isLoading"
-            @click="weatherStore.refreshWeather()"
+          <el-button
+            plain
+            size="small"
+            type="primary"
+            class="inline-location-button"
+            :icon="Location"
+            :loading="isLocatingCurrentPosition"
+            :disabled="isLocatingCurrentPosition"
+            @click="weatherStore.refreshCurrentLocation()"
           >
-            날씨 새로고침
-          </button>
+            위치 확인
+          </el-button>
         </div>
-      </div>
 
-      <p class="result-status" role="status" aria-live="polite">
-        {{ resultMessage }}
-      </p>
+        <article
+          v-if="isLocatingCurrentPosition"
+          class="location-loading-card"
+          role="status"
+          aria-live="polite"
+        >
+          <el-icon class="location-loading-icon is-loading" aria-hidden="true">
+            <Loading />
+          </el-icon>
+          <p>위치 확인 중</p>
+        </article>
 
-      <div v-if="filteredWeatherList.length > 0" class="weather-grid">
+        <el-skeleton v-else-if="isLoading && !currentLocationCity" :rows="4" animated />
+
         <WeatherCard
-          v-for="city in filteredWeatherList"
-          :key="city.id"
-          :city="city"
-          :selected="selectedCityId === city.id"
+          v-else-if="currentLocationCity"
+          :city="currentLocationCity"
+          :selected="selectedCityId === currentLocationCity.id"
           @select="handleSelectCity"
           @click-detail="moveToDetail"
           @toggle-favorite="handleToggleFavorite"
-          @remove="handleRemoveLocation"
         />
-      </div>
+      </BaseDashboardCard>
 
-      <div v-else-if="!isLoading" class="empty-state">
-        <p>표시할 날씨 카드가 없습니다.</p>
+      <BaseDashboardCard class="search-panel" title="도시 검색">
+        <h2 class="panel-title">지역 찾기</h2>
 
-        <p>도시를 검색한 후 ‘대시보드에 추가’ 버튼을 눌러주세요.</p>
+        <SearchBar
+          :query="searchQuery"
+          :is-searching="isSearching"
+          :can-search="canSearch"
+          @update-query="handleSearchQuery"
+          @search="handleSearch"
+        />
 
-        <button type="button" class="secondary-button" @click="resetFilters">
-          검색 조건 초기화
-        </button>
-      </div>
+        <p v-if="searchQuery.trim().length === 1" class="input-guide">
+          새 지역 검색은 이름 또는 초성을 두 글자 이상 입력해야 합니다.
+        </p>
 
-      <p class="sr-only" role="status" aria-live="polite">
-        {{ favoriteMessage }}
-      </p>
+        <section v-if="normalizedSearchQuery" class="grouped-result-section">
+          <div class="search-result-heading">
+            <div>
+              <h2>현재 위치·저장한 지역</h2>
+              <p>API 호출 없이 이름과 초성으로 바로 찾았습니다.</p>
+            </div>
+            <el-tag effect="light" round>{{ matchingDashboardWeather.length }}개</el-tag>
+          </div>
 
-      <div v-if="selectedCity" class="selected-message">
-        선택한 도시:
+          <div v-if="matchingDashboardWeather.length" class="saved-quick-list">
+            <button
+              v-for="city in matchingDashboardWeather"
+              :key="city.id"
+              type="button"
+              class="saved-quick-item"
+              @click="moveToDetail(city.id)"
+            >
+              <span>
+                <strong>{{ city.name }}</strong>
+                <small>{{ city.isCurrentLocation ? '현재 위치' : city.region }}</small>
+              </span>
+              <span class="quick-temperature">{{ Math.round(city.main?.temp) }}℃</span>
+            </button>
+          </div>
 
-        <strong>
-          {{ selectedCity.name }}
-        </strong>
-      </div>
-    </BaseDashboardCard>
+          <p v-else class="empty-inline-result">일치하는 대시보드 지역이 없습니다.</p>
+        </section>
+
+        <el-alert
+          v-if="isSearching"
+          class="inline-search-status"
+          title="새 지역을 검색하고 있습니다."
+          type="info"
+          :closable="false"
+          show-icon
+        />
+
+        <el-alert
+          v-else-if="searchErrorMessage"
+          class="message"
+          :title="searchErrorMessage"
+          type="error"
+          :closable="false"
+          show-icon
+        />
+
+        <section
+          v-else-if="searchResults.length"
+          class="grouped-result-section api-search-section"
+          aria-labelledby="new-location-result-title"
+        >
+          <div class="search-result-heading">
+            <div>
+              <h2 id="new-location-result-title">새 지역 검색 결과</h2>
+              <p>상위 행정구역부터 최대 5개를 표시합니다.</p>
+            </div>
+            <el-tag type="primary" effect="light" round>{{ searchResults.length }}개</el-tag>
+          </div>
+
+          <div class="api-result-list">
+            <article v-for="result in searchResults" :key="result.id" class="api-result-item">
+              <div class="result-location">
+                <div class="result-name-row">
+                  <h3>{{ result.name }}</h3>
+                  <el-tag v-if="result.administrativeLevelLabel" size="small" effect="plain">
+                    {{ result.administrativeLevelLabel }}
+                  </el-tag>
+                </div>
+                <p class="result-administrative-area">{{ getAdministrativeArea(result) }}</p>
+                <p v-if="result.coord" class="result-coordinate">
+                  위도 {{ formatCoordinate(result.coord.lat) }} · 경도
+                  {{ formatCoordinate(result.coord.lon) }}
+                </p>
+                <p v-else class="result-coordinate">좌표와 날씨는 추가할 때 조회합니다.</p>
+              </div>
+
+              <el-button
+                type="primary"
+                class="add-location-button"
+                :loading="addingLocationId === result.id"
+                :disabled="result.isAdded || Boolean(addingLocationId)"
+                @click="handleAddLocation(result)"
+              >
+                {{ result.isAdded ? '추가됨' : '추가' }}
+              </el-button>
+            </article>
+          </div>
+        </section>
+
+        <el-alert
+          v-if="actionMessage"
+          class="message"
+          :title="actionMessage"
+          :type="actionMessageType"
+          :closable="false"
+          show-icon
+        />
+
+        <p class="geocoding-attribution">
+          행정구역: KR LEGAL DONG · 좌표: © OpenStreetMap contributors
+        </p>
+      </BaseDashboardCard>
+
+      <BaseDashboardCard class="saved-cities-panel" title="즐겨찾기 지역">
+        <div class="favorite-panel-heading">
+          <h2 class="panel-title">
+            즐겨찾기
+            <span class="favorite-count" role="status">
+              ({{ favoriteSavedWeatherList.length }})
+            </span>
+          </h2>
+
+          <div class="favorite-panel-actions">
+            <el-button plain size="small" :icon="Setting" @click="moveToSavedLocations">
+              전체 관리
+            </el-button>
+
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              :icon="Refresh"
+              :loading="isLoading"
+              :disabled="isLoading"
+              @click="weatherStore.refreshWeather()"
+            >
+              새로고침
+            </el-button>
+          </div>
+        </div>
+
+        <div v-if="formattedLastUpdatedAt" class="saved-summary">
+          <p class="updated-at">
+            마지막 갱신 {{ formattedLastUpdatedAt }}
+          </p>
+        </div>
+
+        <el-alert
+          v-if="errorMessage"
+          class="message"
+          :title="errorMessage"
+          type="error"
+          :closable="false"
+          show-icon
+        />
+
+        <div v-if="favoriteSavedWeatherList.length" class="saved-weather-list">
+          <WeatherCard
+            v-for="city in visibleFavoriteWeatherList"
+            :key="city.id"
+            :city="city"
+            compact
+            :removable="false"
+            :selected="selectedCityId === city.id"
+            @select="handleSelectCity"
+            @click-detail="moveToDetail"
+            @toggle-favorite="handleToggleFavorite"
+          />
+
+          <el-button
+            v-if="favoriteSavedWeatherList.length > 4"
+            plain
+            class="saved-list-toggle"
+            @click="isAllSavedCitiesVisible = !isAllSavedCitiesVisible"
+          >
+            {{ isAllSavedCitiesVisible ? '간단히 보기' : `${hiddenFavoriteCityCount}개 더 보기` }}
+          </el-button>
+        </div>
+
+        <el-empty
+          v-else-if="!isLoading"
+          :image-size="92"
+          description="즐겨찾기한 지역이 없습니다. 저장한 지역에서 별표를 추가해 보세요."
+        >
+          <el-button plain @click="moveToSavedLocations">저장한 지역 보기</el-button>
+        </el-empty>
+
+        <p class="sr-only" role="status" aria-live="polite">{{ favoriteMessage }}</p>
+        <p v-if="selectedCity" class="selected-message">
+          선택한 도시 <strong>{{ selectedCity.name }}</strong>
+        </p>
+      </BaseDashboardCard>
+
+      <KoreaWeatherMap class="national-map-panel" />
+    </div>
   </section>
 </template>
 
 <style scoped>
-/* ========================================
-   검색과 지역 필터
-======================================== */
-
-.filter-layout {
+.home-page-header {
   display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.85fr);
+  align-items: end;
+  gap: 24px;
+}
 
-  grid-template-columns:
-    minmax(0, 1fr)
-    220px;
+.page-heading-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
 
+.header-location-alert {
+  align-self: end;
+}
+
+.home-dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.85fr);
   grid-template-areas:
-    'search region'
-    'reset reset';
-
+    'search current'
+    'map saved';
   align-items: start;
-
-  gap: 16px 18px;
+  gap: 24px;
 }
 
-.search-area {
+.current-location-panel {
+  grid-area: current;
+}
+
+.search-panel {
   grid-area: search;
-  min-width: 0;
 }
 
-.region-area {
-  grid-area: region;
-  min-width: 0;
+.saved-cities-panel {
+  grid-area: saved;
 }
 
-.form-label {
-  display: block;
+.favorite-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 
-  margin-bottom: 7px;
+.favorite-panel-heading .panel-title {
+  margin-bottom: 0;
+}
 
-  color: #334155;
-
+.favorite-count {
+  color: #64748b;
   font-size: 14px;
   font-weight: 800;
 }
 
-.region-select {
+.favorite-panel-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.favorite-panel-actions :deep(.el-button) {
+  margin-left: 0;
+  font-weight: 800;
+}
+
+.saved-summary {
+  margin-top: 5px;
+}
+
+.national-map-panel {
+  grid-area: map;
+  min-width: 0;
+}
+
+.panel-heading-row,
+.search-result-heading,
+.api-result-item,
+.saved-quick-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.current-location-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.inline-location-button {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  font-weight: 800;
+}
+
+.current-location-panel :deep(.weather-card),
+.location-loading-card {
+  margin-top: 14px;
+}
+
+.location-loading-card {
+  display: grid;
+  place-content: center;
+  gap: 10px;
   box-sizing: border-box;
+  height: 268px;
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  background: #f1f5f9;
+  color: #64748b;
+  text-align: center;
+}
 
+.location-loading-card p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.location-loading-icon {
+  justify-self: center;
+  color: #94a3b8;
+  font-size: 30px;
+}
+
+.current-location-title {
+  margin-bottom: 0;
+}
+
+.panel-title {
+  margin: 0 0 16px;
+  color: #172033;
+  font-size: 20px;
+}
+
+.panel-description {
+  margin-bottom: 20px;
+}
+
+.updated-at,
+.input-guide,
+.empty-inline-result,
+.geocoding-attribution,
+.result-location p {
+  margin: 0;
+}
+
+.panel-description,
+.updated-at,
+.input-guide,
+.empty-inline-result {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.saved-weather-list,
+.grouped-result-section,
+.inline-search-status,
+.message {
+  margin-top: 14px;
+}
+
+.saved-list-toggle {
   width: 100%;
-  min-height: 48px;
-
-  padding: 10px 14px;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-
-  background-color: #ffffff;
-  color: #1e293b;
-
-  font: inherit;
-}
-
-.region-select:hover {
-  border-color: #94a3b8;
-}
-
-.region-select:focus {
-  border-color: #2563eb;
-
-  outline: none;
-
-  box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
-}
-
-.reset-button {
-  grid-area: reset;
-  justify-self: start;
+  margin-top: 2px;
+  font-weight: 800;
 }
 
 .input-guide {
-  margin: 15px 0 0;
-
-  color: #64748b;
-
-  font-size: 13px;
+  margin-top: 9px;
 }
 
-/* ========================================
-   결과 메시지
-======================================== */
-
-.message {
-  margin: 16px 0 0;
-
-  padding: 12px 14px;
-
-  border-radius: 9px;
-
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.message-error {
-  background-color: #fef2f2;
-  color: #b91c1c;
-}
-
-.message-success {
-  background-color: #ecfdf5;
-  color: #047857;
-}
-
-/* ========================================
-   API 자동 검색 결과
-======================================== */
-
-.api-search-section {
-  margin-top: 24px;
-  padding-top: 24px;
-
+.grouped-result-section {
+  padding-top: 14px;
   border-top: 1px solid #e2e8f0;
 }
 
 .search-result-heading {
-  display: flex;
-
   align-items: flex-start;
-  justify-content: space-between;
-
-  gap: 16px;
-
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .search-result-heading h2,
@@ -713,266 +657,136 @@ onBeforeUnmount(() => {
 
 .search-result-heading h2 {
   color: #172033;
-
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .search-result-heading p {
-  margin-top: 5px;
-
+  margin-top: 4px;
   color: #64748b;
-
-  font-size: 13px;
-}
-
-.result-count {
-  flex: 0 0 auto;
-
-  padding: 5px 9px;
-
-  border-radius: 999px;
-
-  background-color: #eff6ff;
-  color: #1d4ed8;
-
   font-size: 12px;
-  font-weight: 850;
 }
 
-.api-result-list {
+.saved-quick-list,
+.api-result-list,
+.saved-weather-list {
   display: grid;
   gap: 10px;
 }
 
+.saved-quick-item {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #dbe3ee;
+  border-radius: 11px;
+  background: #f8fafc;
+  color: #172033;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.saved-quick-item:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.saved-quick-item span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.saved-quick-item small {
+  color: #64748b;
+}
+
+.quick-temperature {
+  color: #172033;
+  font-size: 17px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .api-result-item {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 18px;
-
-  padding: 14px 16px;
-
+  padding: 13px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-
-  background-color: #f8fafc;
-}
-
-.api-result-main {
-  display: flex;
-
-  align-items: center;
-
-  min-width: 0;
-
-  gap: 12px;
-}
-
-.result-weather-icon {
-  flex: 0 0 auto;
-
-  width: 54px;
-  height: 54px;
-
-  object-fit: contain;
+  background: #f8fafc;
 }
 
 .result-location {
   min-width: 0;
 }
 
-.result-location h3,
-.result-location p {
+.result-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.result-name-row h3 {
   margin: 0;
-}
-
-.result-location h3 {
-  overflow-wrap: anywhere;
-
   color: #172033;
-
-  font-size: 16px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
-/* 행정구역 */
 .result-administrative-area {
   margin-top: 4px !important;
-
-  color: #475569 !important;
-
-  font-size: 13px !important;
+  color: #475569;
+  font-size: 12px;
   font-weight: 750;
 }
 
-/* 좌표 */
 .result-coordinate {
-  margin-top: 4px !important;
-
-  color: #94a3b8 !important;
-
-  font-size: 11px !important;
-  line-height: 1.5;
-}
-
-.result-description {
-  margin-top: 5px !important;
-
-  color: #475569 !important;
-
-  font-size: 13px !important;
-  font-weight: 700;
-}
-
-.api-result-actions {
-  display: flex;
-
-  flex: 0 0 auto;
-
-  align-items: center;
-
-  gap: 14px;
-}
-
-.result-temperature {
-  margin: 0;
-
-  color: #172033;
-
-  font-size: 21px;
-  font-weight: 900;
-
-  white-space: nowrap;
+  margin-top: 3px !important;
+  color: #94a3b8;
+  font-size: 11px;
 }
 
 .add-location-button {
-  min-height: 40px;
-
-  padding: 8px 13px;
-
-  border: 1px solid #2563eb;
-  border-radius: 9px;
-
-  background-color: #2563eb;
-  color: #ffffff;
-
-  font: inherit;
-  font-size: 13px;
+  flex: 0 0 auto;
   font-weight: 800;
-
-  white-space: nowrap;
-
-  cursor: pointer;
 }
 
-.add-location-button:hover {
-  background-color: #1d4ed8;
+.geocoding-attribution {
+  margin-top: 14px;
+  color: #94a3b8;
+  font-size: 11px;
 }
 
-.add-location-button:disabled {
-  border-color: #cbd5e1;
-
-  background-color: #e2e8f0;
-  color: #64748b;
-
-  cursor: not-allowed;
-}
-
-.waiting-message {
-  margin: 0;
-
-  color: #64748b;
-
-  font-size: 14px;
-}
-
-/* ========================================
-   날씨 상태
-======================================== */
-
-.weather-status {
-  margin-bottom: 18px;
-}
-
-.weather-update {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 16px;
-
-  margin: 0;
-  padding: 14px 16px;
-
-  border-radius: 10px;
-
-  background-color: #ecfdf5;
-  color: #047857;
-
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.weather-update p {
-  margin: 0;
-}
-
-.result-status {
-  margin: 0 0 18px;
-
-  color: #475569;
-
-  font-size: 14px;
-  font-weight: 700;
+.updated-at {
+  margin-top: 3px;
+  font-size: 11px;
 }
 
 .selected-message {
-  margin-top: 20px;
-
-  padding: 14px 16px;
-
+  margin: 14px 0 0;
+  padding: 11px 13px;
   border-radius: 10px;
-
-  background-color: #f8fafc;
-  color: #334155;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
 }
 
-/* ========================================
-   태블릿
-======================================== */
-
-@media (max-width: 850px) {
-  .filter-layout {
-    grid-template-columns: 1fr;
-
-    grid-template-areas:
-      'search'
-      'region'
-      'reset';
-  }
-
-  .reset-button {
-    justify-self: stretch;
-  }
-
-  .api-result-item {
+@media (max-width: 950px) {
+  .home-page-header {
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
-    flex-direction: column;
   }
 
-  .api-result-actions {
-    justify-content: space-between;
+  .home-dashboard-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'current'
+      'search'
+      'saved'
+      'map';
   }
 }
 
-/* ========================================
-   모바일
-======================================== */
-
-@media (max-width: 600px) {
-  .api-result-actions {
+@media (max-width: 520px) {
+  .api-result-item {
     align-items: stretch;
     flex-direction: column;
   }
@@ -981,9 +795,19 @@ onBeforeUnmount(() => {
     width: 100%;
   }
 
-  .weather-update {
+  .favorite-panel-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .favorite-panel-actions :deep(.el-button) {
+    flex: 1;
+  }
+}
+
+@media (max-width: 420px) {
+  .location-loading-card {
+    height: 319px;
   }
 }
 </style>

@@ -8,15 +8,26 @@ const routes = [
   },
 
   {
-    path: '/favorites',
-    name: 'weather-favorites',
+    path: '/saved',
+    name: 'weather-saved',
     component: () => import('@/views/WeatherFavoritesView.vue'),
+  },
+
+  {
+    path: '/favorites',
+    redirect: '/saved',
   },
 
   {
     path: '/about',
     name: 'weather-about',
     component: () => import('@/views/WeatherAboutView.vue'),
+  },
+
+  {
+    path: '/project',
+    name: 'weather-project',
+    component: () => import('@/views/WeatherProjectView.vue'),
   },
 
   {

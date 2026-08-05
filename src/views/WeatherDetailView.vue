@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 
 import { storeToRefs } from 'pinia'
 
@@ -7,7 +7,11 @@ import { useRoute, useRouter } from 'vue-router'
 
 import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
 
+import HourlyWeatherForecast from '@/components/exercise/HourlyWeatherForecast.vue'
+
 import { useTemperature } from '@/composables/useTemperature'
+
+import { useWeatherSupplement } from '@/composables/useWeatherSupplement'
 
 import { useWeatherStore } from '@/stores/weatherStore'
 
@@ -28,6 +32,20 @@ const router = useRouter()
 const weatherStore = useWeatherStore()
 
 const { weatherList, isLoading, errorMessage } = storeToRefs(weatherStore)
+
+// ========================================
+// 일별·시간별 예보 및 대기질
+// ========================================
+
+const {
+  forecast,
+  airQuality,
+  isLoading: isSupplementLoading,
+  forecastErrorMessage,
+  airQualityErrorMessage,
+  updatedAt: supplementUpdatedAt,
+  fetchWeatherSupplement,
+} = useWeatherSupplement()
 
 // ========================================
 // 현재 도시 조회
@@ -66,8 +84,6 @@ const city = computed(() => {
  *
  * main.temp
  * main.feels_like
- * main.temp_min
- * main.temp_max
  */
 const currentTemperature = computed(() => {
   return city.value?.main?.temp
@@ -77,12 +93,12 @@ const feelsLikeTemperature = computed(() => {
   return city.value?.main?.feels_like
 })
 
-const minimumTemperature = computed(() => {
-  return city.value?.main?.temp_min
+const todayMinimumTemperature = computed(() => {
+  return forecast.value.todayMinimum
 })
 
-const maximumTemperature = computed(() => {
-  return city.value?.main?.temp_max
+const todayMaximumTemperature = computed(() => {
+  return forecast.value.todayMaximum
 })
 
 // ========================================
@@ -93,9 +109,11 @@ const { formattedTemperature: formattedCurrentTemperature } = useTemperature(cur
 
 const { formattedTemperature: formattedFeelsLikeTemperature } = useTemperature(feelsLikeTemperature)
 
-const { formattedTemperature: formattedMinimumTemperature } = useTemperature(minimumTemperature)
+const { formattedTemperature: formattedTodayMinimumTemperature } =
+  useTemperature(todayMinimumTemperature)
 
-const { formattedTemperature: formattedMaximumTemperature } = useTemperature(maximumTemperature)
+const { formattedTemperature: formattedTodayMaximumTemperature } =
+  useTemperature(todayMaximumTemperature)
 
 // ========================================
 // 날씨 아이콘
@@ -120,17 +138,22 @@ const locationText = computed(() => {
     return ''
   }
 
-  const locationParts = []
-
-  if (city.value.state) {
-    locationParts.push(city.value.state)
+  if (city.value.state === city.value.name) {
+    return ''
   }
 
-  if (city.value.countryCode) {
-    locationParts.push(city.value.countryCode)
+  return city.value.state
+})
+
+const coordinateText = computed(() => {
+  const latitude = Number(city.value?.coord?.lat)
+  const longitude = Number(city.value?.coord?.lon)
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return '정보 없음'
   }
 
-  return locationParts.join(' · ')
+  return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
 })
 
 // ========================================
@@ -145,20 +168,6 @@ const humidityText = computed(() => {
   }
 
   return `${humidity}%`
-})
-
-// ========================================
-// 기압
-// ========================================
-
-const pressureText = computed(() => {
-  const pressure = city.value?.main?.pressure
-
-  if (pressure === null || pressure === undefined) {
-    return '정보 없음'
-  }
-
-  return `${pressure} hPa`
 })
 
 // ========================================
@@ -190,57 +199,83 @@ const visibilityText = computed(() => {
 })
 
 // ========================================
-// 구름량
+// 대기질
 // ========================================
 
-const cloudinessText = computed(() => {
-  const cloudiness = city.value?.clouds?.all
-
-  if (cloudiness === null || cloudiness === undefined) {
+const formatParticulateMatter = (value) => {
+  if (value === null || value === undefined) {
     return '정보 없음'
   }
 
-  return `${cloudiness}%`
-})
+  const numericValue = Number(value)
 
-// ========================================
-// 일출·일몰 시간
-// ========================================
-
-/**
- * OpenWeather의 sunrise와 sunset은
- * Unix timestamp 초 단위 값입니다.
- *
- * 도시의 timezone 값도 초 단위이므로
- * 두 값을 이용해 해당 도시 기준 시각을 표시합니다.
- */
-const formatCityTime = (unixTimestamp) => {
-  if (unixTimestamp === null || unixTimestamp === undefined) {
+  if (!Number.isFinite(numericValue)) {
     return '정보 없음'
   }
 
-  const timezoneOffset = city.value?.timezone ?? 0
-
-  /**
-   * timestamp와 도시 timezone을 더한 후
-   * UTC 기준으로 시·분만 출력합니다.
-   */
-  const cityDate = new Date((Number(unixTimestamp) + Number(timezoneOffset)) * 1000)
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'UTC',
-  }).format(cityDate)
+  return `${numericValue.toFixed(1)} µg/m³`
 }
 
-const sunriseText = computed(() => {
-  return formatCityTime(city.value?.sys?.sunrise)
+const pm10Text = computed(() => {
+  return formatParticulateMatter(airQuality.value.pm10)
 })
 
-const sunsetText = computed(() => {
-  return formatCityTime(city.value?.sys?.sunset)
+const pm25Text = computed(() => {
+  return formatParticulateMatter(airQuality.value.pm2_5)
+})
+
+const getAirQualityGrade = (value, type) => {
+  if (value === null || value === undefined) {
+    return {
+      label: '정보 없음',
+      className: 'unknown',
+    }
+  }
+
+  const numericValue = Number(value)
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return {
+      label: '정보 없음',
+      className: 'unknown',
+    }
+  }
+
+  const thresholds = type === 'pm25' ? [15, 35, 75] : [30, 80, 150]
+
+  if (numericValue <= thresholds[0]) {
+    return {
+      label: '좋음',
+      className: 'good',
+    }
+  }
+
+  if (numericValue <= thresholds[1]) {
+    return {
+      label: '보통',
+      className: 'normal',
+    }
+  }
+
+  if (numericValue <= thresholds[2]) {
+    return {
+      label: '나쁨',
+      className: 'bad',
+    }
+  }
+
+  return {
+    label: '매우 나쁨',
+    className: 'very-bad',
+  }
+}
+
+const pm10Grade = computed(() => {
+  return getAirQualityGrade(airQuality.value.pm10, 'pm10')
+})
+
+const pm25Grade = computed(() => {
+  return getAirQualityGrade(airQuality.value.pm2_5, 'pm25')
 })
 
 // ========================================
@@ -302,10 +337,36 @@ onMounted(async () => {
    *
    * 이 경우 기본·추가 지역의 날씨를 먼저 불러옵니다.
    */
+  const shouldResolveCurrentLocation =
+    cityId.value === 'current-location' && weatherList.value.length === 0
+
   if (weatherList.value.length === 0) {
     await weatherStore.fetchAllWeather()
   }
+
+  if (shouldResolveCurrentLocation) {
+    weatherStore.refreshCurrentLocation()
+  }
 })
+
+watch(
+  () => [city.value?.coord?.lat, city.value?.coord?.lon],
+  ([latitude, longitude]) => {
+    if (
+      latitude === null ||
+      latitude === undefined ||
+      longitude === null ||
+      longitude === undefined
+    ) {
+      return
+    }
+
+    fetchWeatherSupplement(latitude, longitude)
+  },
+  {
+    immediate: true,
+  },
+)
 </script>
 
 <template>
@@ -364,6 +425,10 @@ onMounted(async () => {
       <BaseDashboardCard :title="`${city.name} 현재 날씨`">
         <div class="weather-overview">
           <div class="overview-information">
+            <h2 class="selected-city-name">
+              {{ city.name }}
+            </h2>
+
             <p v-if="locationText" class="location-text">
               {{ locationText }}
             </p>
@@ -408,6 +473,11 @@ onMounted(async () => {
 
             {{ city.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가' }}
           </button>
+
+          <p class="coordinate-text">
+            좌표:
+            <strong>{{ coordinateText }}</strong>
+          </p>
         </div>
       </BaseDashboardCard>
 
@@ -431,27 +501,22 @@ onMounted(async () => {
             </dd>
           </div>
 
-          <!-- <div class="information-item">
-            <dt>최저 기온</dt>
+          <div class="information-item temperature-low-item">
+            <dt>오늘 최저 기온</dt>
 
             <dd>
-              {{ formattedMinimumTemperature }}
+              {{ isSupplementLoading ? '불러오는 중' : formattedTodayMinimumTemperature }}
             </dd>
           </div>
 
-          <div class="information-item">
-            <dt>최고 기온</dt>
+          <div class="information-item temperature-high-item">
+            <dt>오늘 최고 기온</dt>
 
             <dd>
-              {{ formattedMaximumTemperature }}
+              {{ isSupplementLoading ? '불러오는 중' : formattedTodayMaximumTemperature }}
             </dd>
-          </div> -->
+          </div>
         </dl>
-
-        <p class="temperature-notice">
-          최저·최고 기온은 일일 예보값이 아니라 OpenWeather Current Weather API가 제공하는 현재 관측
-          범위의 최저·최고값입니다. 따라서 현재 기온과 동일하게 표시될 수 있습니다.
-        </p>
       </BaseDashboardCard>
 
       <!-- 상세 기상 정보 -->
@@ -481,36 +546,87 @@ onMounted(async () => {
               {{ visibilityText }}
             </dd>
           </div>
-
-          <div class="information-item">
-            <dt>일출</dt>
-
-            <dd>
-              {{ sunriseText }}
-            </dd>
-          </div>
-
-          <div class="information-item">
-            <dt>일몰</dt>
-
-            <dd>
-              {{ sunsetText }}
-            </dd>
-          </div>
-
-          <div class="information-item">
-            <dt>좌표</dt>
-
-            <dd>
-              <template v-if="city.coord?.lat !== undefined && city.coord?.lon !== undefined">
-                {{ Number(city.coord.lat).toFixed(4) }},
-                {{ Number(city.coord.lon).toFixed(4) }}
-              </template>
-
-              <template v-else> 정보 없음 </template>
-            </dd>
-          </div>
         </dl>
+
+        <section class="air-quality" aria-labelledby="air-quality-title">
+          <div class="air-quality-heading">
+            <div>
+              <h3 id="air-quality-title">현재 대기질</h3>
+
+              <p>지역 좌표에 가장 가까운 예보 격자 기준</p>
+            </div>
+
+            <span class="air-quality-badge">Air Quality</span>
+          </div>
+
+          <dl class="air-quality-grid">
+            <div class="information-item air-quality-item">
+              <dt>미세먼지 <small>PM10</small></dt>
+
+              <dd class="air-quality-value">
+                <span>{{ isSupplementLoading ? '불러오는 중' : pm10Text }}</span>
+
+                <span
+                  v-if="!isSupplementLoading && pm10Grade.className !== 'unknown'"
+                  class="air-quality-grade"
+                  :class="`air-quality-grade-${pm10Grade.className}`"
+                >
+                  {{ pm10Grade.label }}
+                </span>
+              </dd>
+            </div>
+
+            <div class="information-item air-quality-item">
+              <dt>초미세먼지 <small>PM2.5</small></dt>
+
+              <dd class="air-quality-value">
+                <span>{{ isSupplementLoading ? '불러오는 중' : pm25Text }}</span>
+
+                <span
+                  v-if="!isSupplementLoading && pm25Grade.className !== 'unknown'"
+                  class="air-quality-grade"
+                  :class="`air-quality-grade-${pm25Grade.className}`"
+                >
+                  {{ pm25Grade.label }}
+                </span>
+              </dd>
+            </div>
+          </dl>
+
+          <el-alert
+            v-if="airQualityErrorMessage"
+            class="air-quality-error"
+            :title="airQualityErrorMessage"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
+
+          <p class="air-quality-source">
+            대기질 데이터:
+            <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>
+            ·
+            <a href="https://atmosphere.copernicus.eu/" target="_blank" rel="noreferrer">
+              CAMS ENSEMBLE
+            </a>
+            · 등급 기준
+            <a href="https://m.airkorea.or.kr/info/behaviorInfo1" target="_blank" rel="noreferrer">
+              에어코리아
+            </a>
+          </p>
+        </section>
+      </BaseDashboardCard>
+
+      <!-- 시간별 예보 -->
+
+      <BaseDashboardCard class="hourly-card">
+        <HourlyWeatherForecast
+          :items="forecast.hourly"
+          :sun-events="forecast.sunEvents"
+          :is-loading="isSupplementLoading"
+          :error-message="forecastErrorMessage"
+          :updated-at="supplementUpdatedAt"
+        />
       </BaseDashboardCard>
 
       <!-- 홈 이동 -->
@@ -559,13 +675,23 @@ onMounted(async () => {
 }
 
 .location-text,
+.selected-city-name,
 .current-temperature,
 .weather-description,
 .observed-at {
   margin: 0;
 }
 
+.selected-city-name {
+  color: #172033;
+  font-size: clamp(24px, 4vw, 34px);
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .location-text {
+  margin-top: 6px;
+
   color: #2563eb;
 
   font-size: 14px;
@@ -610,7 +736,30 @@ onMounted(async () => {
 }
 
 .overview-actions {
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 18px;
+
   margin-top: 22px;
+}
+
+.coordinate-text {
+  margin: 0 0 0 auto;
+
+  color: #64748b;
+
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.coordinate-text strong {
+  color: #334155;
+
+  font-weight: 800;
 }
 
 /* ========================================
@@ -628,8 +777,22 @@ onMounted(async () => {
   margin: 0;
 }
 
+.hourly-card {
+  overflow: hidden;
+}
+
 .detail-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.temperature-low-item {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.temperature-high-item {
+  border-color: #e2e8f0;
+  background: #f8fafc;
 }
 
 .information-item {
@@ -666,19 +829,306 @@ onMounted(async () => {
   font-weight: 900;
 }
 
-.temperature-notice {
-  margin: 16px 0 0;
+/* ========================================
+   대기질
+======================================== */
 
-  padding: 14px 16px;
+.air-quality {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e2e8f0;
+}
 
-  border-left: 4px solid #2563eb;
-  border-radius: 0 10px 10px 0;
+.air-quality-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 13px;
+}
 
-  background-color: #eff6ff;
+.air-quality-heading h3,
+.air-quality-heading p,
+.air-quality-source {
+  margin: 0;
+}
+
+.air-quality-heading h3 {
+  color: #172033;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.air-quality-heading p {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.air-quality-badge {
+  padding: 5px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f1f5f9;
   color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.air-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+
+.air-quality-item {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.air-quality-item dt small {
+  margin-left: 4px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.air-quality-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.air-quality-grade {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.air-quality-grade-good {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.air-quality-grade-normal {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.air-quality-grade-bad {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.air-quality-grade-very-bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.air-quality-source {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 10px;
+  text-align: right;
+}
+
+.air-quality-error {
+  margin-top: 12px;
+}
+
+.air-quality-source a {
+  color: #2563eb;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.air-quality-source a:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
+   일출·일몰 타임라인
+======================================== */
+
+.sun-timeline {
+  margin-top: 18px;
+  padding: 20px 18px 16px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+
+  background: #f8fafc;
+}
+
+.sun-timeline-heading h3,
+.sun-timeline-heading p,
+.sun-timeline-empty {
+  margin: 0;
+}
+
+.sun-timeline-heading h3 {
+  color: #172033;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.sun-timeline-heading p {
+  margin-top: 4px;
+
+  color: #64748b;
+
+  font-size: 12px;
+}
+
+.sun-timeline-chart {
+  padding: 0 6px;
+}
+
+.timeline-track {
+  position: relative;
+
+  height: 8px;
+
+  margin-top: 68px;
+
+  border-radius: 999px;
+
+  background: #dbeafe;
+  box-shadow: inset 0 0 0 1px rgb(37 99 235 / 8%);
+}
+
+.daylight-segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+
+  border-radius: inherit;
+
+  background: linear-gradient(90deg, #fbbf24, #fde68a 52%, #fb923c);
+}
+
+.sun-event {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+
+  transform: translate(-50%, -50%);
+}
+
+.event-point {
+  display: block;
+
+  width: 17px;
+  height: 17px;
+
+  border: 4px solid #ffffff;
+  border-radius: 50%;
+
+  box-shadow: 0 2px 8px rgb(15 23 42 / 20%);
+}
+
+.sunrise-event .event-point {
+  background: #f59e0b;
+}
+
+.sunset-event .event-point {
+  background: #6366f1;
+}
+
+.event-label {
+  position: absolute;
+  bottom: 23px;
+  left: 50%;
+
+  display: grid;
+
+  grid-template-areas:
+    'icon name'
+    'icon time';
+  grid-template-columns: auto auto;
+
+  align-items: center;
+
+  min-width: max-content;
+  padding: 7px 10px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+
+  background: #ffffff;
+  box-shadow: 0 5px 16px rgb(15 23 42 / 9%);
+
+  transform: translateX(-50%);
+}
+
+.sun-event-icon {
+  grid-area: icon;
+
+  width: 29px;
+  height: 29px;
+
+  margin-right: 8px;
+}
+
+.sun-icon {
+  color: #f59e0b;
+}
+
+.moon-icon {
+  color: #6366f1;
+}
+
+.event-label span {
+  grid-area: name;
+
+  color: #64748b;
+
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.event-label strong {
+  grid-area: time;
+
+  margin-top: 2px;
+
+  color: #172033;
+
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.time-scale {
+  display: flex;
+
+  justify-content: space-between;
+
+  margin-top: 11px;
+
+  color: #64748b;
+
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sun-timeline-empty {
+  margin-top: 16px;
+
+  color: #64748b;
 
   font-size: 13px;
-  line-height: 1.7;
 }
 
 /* ========================================
@@ -759,9 +1209,12 @@ onMounted(async () => {
 ======================================== */
 
 @media (max-width: 850px) {
-  .temperature-grid,
-  .detail-grid {
+  .temperature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -781,8 +1234,36 @@ onMounted(async () => {
   }
 
   .temperature-grid,
-  .detail-grid {
+  .detail-grid,
+  .air-quality-grid {
     grid-template-columns: 1fr;
+  }
+
+  .overview-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coordinate-text {
+    margin-left: 0;
+
+    text-align: left;
+  }
+
+  .sun-timeline {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .event-label {
+    padding: 6px 8px;
+  }
+
+  .sun-event-icon {
+    width: 25px;
+    height: 25px;
+
+    margin-right: 6px;
   }
 
   .error-actions,
