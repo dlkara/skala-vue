@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { storeToRefs } from 'pinia'
 
@@ -72,6 +72,41 @@ const city = computed(() => {
 
   return weatherStore.getWeatherById(cityId.value)
 })
+
+const nationalMapLocation = computed(() => {
+  if (route.query.source !== 'national-map' || !cityId.value) {
+    return null
+  }
+
+  const latitude = Number(route.query.lat)
+  const longitude = Number(route.query.lon)
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null
+  }
+
+  return {
+    id: cityId.value,
+    name: String(route.query.name || '선택 지역'),
+    apiName: String(route.query.name || '선택 지역'),
+    state: String(route.query.state || ''),
+    countryCode: 'KR',
+    coord: {
+      lat: latitude,
+      lon: longitude,
+    },
+    addedByUser: false,
+    isNationalMapLocation: true,
+  }
+})
+
+const isResolvingDirectCurrentLocation = ref(
+  cityId.value === 'current-location' && weatherList.value.length === 0,
+)
+
+const isResolvingNationalMapLocation = ref(
+  Boolean(nationalMapLocation.value) && !weatherStore.getWeatherById(cityId.value),
+)
 
 // ========================================
 // 온도 원본값
@@ -345,14 +380,32 @@ onMounted(async () => {
   }
 
   if (shouldResolveCurrentLocation) {
-    weatherStore.refreshCurrentLocation()
+    await weatherStore.refreshCurrentLocation()
   }
+
+  if (!city.value && nationalMapLocation.value) {
+    try {
+      await weatherStore.fetchWeatherForDetail(nationalMapLocation.value)
+    } catch (error) {
+      console.error('전국 지도 상세 날씨 복원 실패:', error)
+    }
+  }
+
+  isResolvingDirectCurrentLocation.value = false
+  isResolvingNationalMapLocation.value = false
 })
 
 watch(
-  () => [city.value?.coord?.lat, city.value?.coord?.lon],
-  ([latitude, longitude]) => {
+  () => [
+    city.value?.coord?.lat,
+    city.value?.coord?.lon,
+    isResolvingDirectCurrentLocation.value,
+    isResolvingNationalMapLocation.value,
+  ],
+  ([latitude, longitude, isResolvingCurrentLocation, isResolvingMapLocation]) => {
     if (
+      isResolvingCurrentLocation ||
+      isResolvingMapLocation ||
       latitude === null ||
       latitude === undefined ||
       longitude === null ||
@@ -387,7 +440,10 @@ watch(
          로딩 상태
     ======================================= -->
 
-    <BaseDashboardCard v-if="isLoading" title="날씨 정보 불러오기">
+    <BaseDashboardCard
+      v-if="isLoading || isResolvingNationalMapLocation"
+      title="날씨 정보 불러오기"
+    >
       <p class="loading-message" role="status" aria-live="polite">
         상세 날씨 정보를 불러오고 있습니다.
       </p>
@@ -459,6 +515,7 @@ watch(
 
         <div class="overview-actions">
           <button
+            v-if="!city.isNationalMapLocation"
             type="button"
             class="favorite-button"
             :class="{

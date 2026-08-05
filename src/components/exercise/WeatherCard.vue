@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 
-import { Delete, Star, StarFilled, View } from '@element-plus/icons-vue'
+import { CircleCheck, Delete, FolderAdd, Star, StarFilled, View } from '@element-plus/icons-vue'
 
 import { useTemperature } from '@/composables/useTemperature'
 
@@ -32,13 +32,28 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+
+  saveable: {
+    type: Boolean,
+    default: false,
+  },
+
+  saved: {
+    type: Boolean,
+    default: false,
+  },
+
+  iconOnlyActions: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 // ========================================
 // Emits
 // ========================================
 
-const emit = defineEmits(['select', 'click-detail', 'toggle-favorite', 'remove'])
+const emit = defineEmits(['select', 'click-detail', 'save', 'toggle-favorite', 'remove'])
 
 // ========================================
 // 온도 및 아이콘
@@ -78,6 +93,14 @@ const handleFavorite = () => {
   emit('toggle-favorite', props.city)
 }
 
+const handleSave = () => {
+  if (props.saved) {
+    return
+  }
+
+  emit('save', props.city)
+}
+
 const handleRemove = () => {
   emit('remove', props.city)
 }
@@ -91,6 +114,8 @@ const handleRemove = () => {
       'weather-card-current': city.isCurrentLocation,
       'weather-card-compact': compact,
       'weather-card-no-remove': !removable,
+      'weather-card-has-save': saveable,
+      'weather-card-icon-actions': iconOnlyActions,
     }"
   >
     <!-- 카드의 날씨 정보 선택 영역 -->
@@ -140,12 +165,37 @@ const handleRemove = () => {
 
     <!-- 카드 내부 기능 버튼 -->
     <div class="card-actions">
-      <button type="button" class="detail-button" @click.stop="handleDetail">
+      <button
+        type="button"
+        class="detail-button"
+        :aria-label="`${city.name} 상세 날씨 보기`"
+        :title="`${city.name} 상세 날씨 보기`"
+        @click.stop="handleDetail"
+      >
         <el-icon class="action-icon" aria-hidden="true">
           <View />
         </el-icon>
 
-        {{ compact ? '상세' : '상세 보기' }}
+        <span v-if="!iconOnlyActions">{{ compact ? '상세' : '상세 보기' }}</span>
+      </button>
+
+      <button
+        v-if="saveable"
+        type="button"
+        class="save-button"
+        :class="{ 'save-button-saved': saved }"
+        :disabled="saved"
+        :aria-pressed="saved"
+        :aria-label="saved ? `${city.name} 저장 완료` : `${city.name} 저장한 지역에 추가`"
+        :title="saved ? `${city.name} 저장 완료` : `${city.name} 저장한 지역에 추가`"
+        @click.stop="handleSave"
+      >
+        <el-icon class="action-icon" aria-hidden="true">
+          <CircleCheck v-if="saved" />
+          <FolderAdd v-else />
+        </el-icon>
+
+        <span v-if="!iconOnlyActions">{{ saved ? '저장됨' : '저장' }}</span>
       </button>
 
       <button
@@ -156,6 +206,7 @@ const handleRemove = () => {
         }"
         :aria-pressed="city.favorite"
         :aria-label="city.favorite ? `${city.name} 즐겨찾기 해제` : `${city.name} 즐겨찾기 추가`"
+        :title="city.favorite ? `${city.name} 즐겨찾기 해제` : `${city.name} 즐겨찾기 추가`"
         @click.stop="handleFavorite"
       >
         <el-icon class="action-icon" aria-hidden="true">
@@ -163,7 +214,7 @@ const handleRemove = () => {
           <Star v-else />
         </el-icon>
 
-        <span>
+        <span v-if="!iconOnlyActions">
           {{
             compact
               ? city.favorite
@@ -281,6 +332,7 @@ const handleRemove = () => {
 }
 
 .weather-card-compact .detail-button,
+.weather-card-compact .save-button,
 .weather-card-compact .favorite-button,
 .weather-card-compact .remove-button {
   min-height: 36px;
@@ -429,7 +481,22 @@ const handleRemove = () => {
   padding: 0 22px 22px;
 }
 
+.weather-card-has-save .card-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.weather-card-icon-actions .detail-button,
+.weather-card-icon-actions .save-button,
+.weather-card-icon-actions .favorite-button {
+  padding-inline: 8px;
+}
+
+.weather-card-icon-actions .action-icon {
+  font-size: 18px;
+}
+
 .detail-button,
+.save-button,
 .favorite-button,
 .remove-button {
   display: inline-flex;
@@ -464,6 +531,30 @@ const handleRemove = () => {
 
 .detail-button:hover {
   background-color: #1d4ed8;
+}
+
+.save-button {
+  border: 1px solid #cbd5e1;
+
+  background-color: #f8fafc;
+  color: #334155;
+}
+
+.save-button:hover:not(:disabled) {
+  border-color: #94a3b8;
+
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.save-button-saved,
+.save-button:disabled {
+  border-color: #dbe3ee;
+
+  background-color: #eef2f6;
+  color: #64748b;
+
+  cursor: default;
 }
 
 .favorite-button {
@@ -518,6 +609,7 @@ const handleRemove = () => {
 }
 
 .detail-button:focus-visible,
+.save-button:focus-visible,
 .favorite-button:focus-visible,
 .remove-button:focus-visible {
   outline: 3px solid rgb(37 99 235 / 24%);
@@ -527,6 +619,10 @@ const handleRemove = () => {
 
 @media (max-width: 420px) {
   .card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .weather-card-has-save .card-actions {
     grid-template-columns: 1fr;
   }
 

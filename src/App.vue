@@ -1,11 +1,37 @@
 <script setup>
-import { nextTick, watch } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import UnitToggle from '@/components/exercise/UnitToggle.vue'
 
 const route = useRoute()
+const router = useRouter()
+
+const menuRouteNames = {
+  '/': 'weather-home',
+  '/saved': 'weather-saved',
+  '/about': 'weather-about',
+  '/project': 'weather-project',
+}
+
+const activeMenuPath = computed(() => {
+  if (route.path.startsWith('/weather/')) {
+    return '/'
+  }
+
+  return route.path
+})
+
+const handleMenuSelect = async (menuPath) => {
+  const routeName = menuRouteNames[menuPath]
+
+  if (!routeName || route.name === routeName) {
+    return
+  }
+
+  await router.push({ name: routeName })
+}
 
 /**
  * 페이지가 변경되면 본문으로 초점을 이동합니다.
@@ -29,22 +55,29 @@ watch(
     <header class="app-header">
       <div class="header-inner">
         <!-- 서비스 로고 -->
-        <RouterLink to="/" class="app-logo" aria-label="Weather Now 날씨 홈으로 이동">
+        <RouterLink to="/" class="app-logo" aria-label="WeatherNow 날씨 홈으로 이동">
           Weather<span>Now</span>
         </RouterLink>
 
         <!-- 주요 메뉴 -->
-        <nav class="navigation" aria-label="주요 메뉴">
-          <RouterLink to="/" class="nav-link"> 날씨 홈 </RouterLink>
+        <el-menu
+          class="navigation"
+          mode="horizontal"
+          :default-active="activeMenuPath"
+          :ellipsis="false"
+          aria-label="주요 메뉴"
+          @select="handleMenuSelect"
+        >
+          <el-menu-item index="/">날씨 홈</el-menu-item>
 
-          <RouterLink to="/saved" class="nav-link"> 저장한 지역 </RouterLink>
+          <el-menu-item index="/saved">저장한 지역</el-menu-item>
 
-          <RouterLink to="/about" class="nav-link"> 서비스 소개 </RouterLink>
+          <el-menu-item index="/about">서비스 소개</el-menu-item>
 
-          <RouterLink to="/project" class="nav-link nav-link--project">
+          <el-menu-item index="/project" class="project-menu-item">
             <span>프로젝트 소개</span>
-          </RouterLink>
-        </nav>
+          </el-menu-item>
+        </el-menu>
 
         <!-- 온도 단위 변경 -->
         <UnitToggle class="header-unit-toggle" />
@@ -166,84 +199,56 @@ watch(
 .navigation {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 6px;
 
   min-width: 0;
+
+  border-bottom: 0;
+  background: transparent;
 }
 
-.nav-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  min-height: 44px;
-  padding: 8px 14px;
-
-  border-radius: 9px;
-
-  color: #475569;
-  font-size: 14px;
-  font-weight: 800;
-  text-decoration: none;
-  white-space: nowrap;
-
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-}
-
-.nav-link:hover {
-  background-color: #f1f5f9;
-  color: #172033;
-}
-
-.nav-link.router-link-exact-active {
-  background-color: #eff6ff;
-  color: #1d4ed8;
-}
-
-/*
-  프로젝트 소개는 서비스 이용 메뉴가 아닌 개발 문서이므로
-  구분선과 별도 라벨을 사용해 하나의 독립된 링크로 표현합니다.
-*/
-.nav-link--project {
+.navigation :deep(.project-menu-item) {
   position: relative;
-
-  min-height: 38px;
-  margin-left: 10px;
-  padding: 6px 11px;
-
-  border: 1px solid #dbe3ee;
-  border-radius: 10px;
-
-  background-color: #ffffff;
+  margin-left: 18px;
 }
 
-.nav-link--project::before {
+.navigation :deep(.project-menu-item::before) {
   position: absolute;
   top: 50%;
-  left: -17px;
-
+  left: -12px;
   width: 1px;
   height: 24px;
-
   background-color: #dbe3ee;
-
   content: '';
   pointer-events: none;
   transform: translateY(-50%);
 }
 
-.nav-link--project:hover {
-  border-color: #bfdbfe;
-  background-color: #f8fbff;
-  color: #1d4ed8;
+.navigation :deep(.el-menu-item) {
+  --el-menu-horizontal-height: 44px;
+
+  flex: 0 0 auto;
+  height: 44px;
+  padding: 0 14px;
+  border-bottom: 0 !important;
+  border-radius: 9px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 44px;
+  white-space: nowrap;
 }
 
-.nav-link--project.router-link-exact-active {
-  border-color: #bfdbfe;
+.navigation :deep(.el-menu-item:hover),
+.navigation :deep(.el-menu-item:focus) {
+  background-color: #f1f5f9;
+  color: #172033;
+}
+
+.navigation :deep(.el-menu-item.is-active) {
   background-color: #eff6ff;
+  color: #1d4ed8;
 }
 
 /* ========================================
@@ -304,9 +309,6 @@ watch(
     border-top: 1px solid #e2e8f0;
   }
 
-  .nav-link {
-    flex: 0 0 auto;
-  }
 }
 
 /* ========================================
@@ -339,39 +341,14 @@ watch(
     order: 3;
   }
 
-  .nav-link {
-    flex: 1 0 auto;
-  }
-
-  .nav-link--project {
-    flex-grow: 0;
-  }
 }
 
 @media (max-width: 430px) {
-  .navigation {
-    gap: 4px;
-  }
-
-  .nav-link {
-    flex: 0 0 auto;
-
+  .navigation :deep(.el-menu-item) {
     padding-right: 8px;
     padding-left: 8px;
 
     font-size: 12px;
   }
-
-  .nav-link--project {
-    min-height: 36px;
-    margin-left: 22px;
-    padding-right: 9px;
-    padding-left: 9px;
-  }
-
-  .nav-link--project::before {
-    left: -17px;
-  }
-
 }
 </style>

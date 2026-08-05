@@ -17,6 +17,7 @@ import { useWeatherStore } from '@/stores/weatherStore'
 
 import { withObjectParticle } from '@/utils/formatKoreanParticle'
 import { getChosung } from '@/utils/getChosung'
+import { getRepresentativeLocationName } from '@/utils/getRepresentativeLocationName'
 
 const router = useRouter()
 const weatherStore = useWeatherStore()
@@ -32,6 +33,7 @@ const {
   errorMessage,
   searchErrorMessage,
   formattedLastUpdatedAt,
+  isCurrentLocationSaved,
 } = storeToRefs(weatherStore)
 
 const searchQuery = ref('')
@@ -81,13 +83,11 @@ const matchingDashboardWeather = computed(() => {
   }
 
   return weatherList.value.filter((city) => {
-    const searchableText = [city.name, city.apiName, city.state]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    const cityChosung = getChosung([city.name, city.state].filter(Boolean).join(' '))
+    const representativeName = getRepresentativeLocationName(city.name || '')
+    const searchableName = representativeName.toLowerCase()
+    const cityChosung = getChosung(representativeName)
 
-    return searchableText.includes(query) || cityChosung.includes(query)
+    return searchableName.includes(query) || cityChosung.includes(query)
   })
 })
 
@@ -182,6 +182,19 @@ const handleToggleFavorite = (city) => {
   ElMessage.success(favoriteMessage.value)
 }
 
+const handleSaveCurrentLocation = () => {
+  const result = weatherStore.saveCurrentLocation()
+
+  actionMessage.value = result.message
+  actionMessageType.value = result.success ? 'success' : 'warning'
+
+  if (result.success) {
+    ElMessage.success(result.message)
+  } else {
+    ElMessage.warning(result.message)
+  }
+}
+
 onMounted(async () => {
   weatherStore.preloadKoreanAdministrativeAreaList()
   await weatherStore.fetchAllWeather()
@@ -251,8 +264,12 @@ onMounted(async () => {
           v-else-if="currentLocationCity"
           :city="currentLocationCity"
           :selected="selectedCityId === currentLocationCity.id"
+          saveable
+          :saved="isCurrentLocationSaved"
+          icon-only-actions
           @select="handleSelectCity"
           @click-detail="moveToDetail"
+          @save="handleSaveCurrentLocation"
           @toggle-favorite="handleToggleFavorite"
         />
       </BaseDashboardCard>

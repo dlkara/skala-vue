@@ -362,6 +362,15 @@ watch(
       </div>
     </div>
 
+    <el-alert
+      v-if="errorMessage && items.length"
+      class="forecast-warning"
+      :title="errorMessage"
+      type="warning"
+      :closable="false"
+      show-icon
+    />
+
     <el-skeleton v-if="isLoading && items.length === 0" :rows="6" animated />
 
     <el-alert
@@ -582,6 +591,10 @@ watch(
   justify-content: space-between;
   gap: 20px;
   margin-bottom: 18px;
+}
+
+.forecast-warning {
+  margin-bottom: 16px;
 }
 
 .section-eyebrow,

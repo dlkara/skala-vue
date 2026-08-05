@@ -6,6 +6,7 @@ import { defineStore } from 'pinia'
 
 import { withObjectParticle, withTopicParticle } from '@/utils/formatKoreanParticle'
 import { getChosung } from '@/utils/getChosung'
+import { getRepresentativeLocationName } from '@/utils/getRepresentativeLocationName'
 import { getWeatherRegion, WEATHER_REGION_LABELS } from '@/utils/getWeatherRegion'
 
 // ========================================
@@ -48,7 +49,7 @@ const LOCATION_SEARCH_CACHE_STORAGE_KEY = 'weather-dashboard-location-search-cac
 
 const LOCATION_SEARCH_CACHE_TTL = 1000 * 60 * 60 * 24 * 30
 
-const LOCATION_SEARCH_CACHE_VERSION = 3
+const LOCATION_SEARCH_CACHE_VERSION = 4
 
 let koreanAdministrativeAreaListPromise = null
 
@@ -237,17 +238,17 @@ const findMatchingLegalLocations = async (query) => {
 
   return administrativeAreaList
     .filter((location) => {
-      const normalizedName = normalizeLocationName(location.name)
-      const normalizedFullName = normalizeLocationName(location.fullName)
-      const normalizedNameChosung = normalizeLocationName(getChosung(location.name || ''))
-      const normalizedFullNameChosung = normalizeLocationName(getChosung(location.fullName || ''))
+      const representativeName = getRepresentativeLocationName(
+        location.name || location.fullName || '',
+      )
+      const normalizedName = normalizeLocationName(representativeName)
+      const normalizedNameChosung = normalizeLocationName(getChosung(representativeName))
 
       return (
         location.active &&
         (isChosungQuery
-          ? normalizedNameChosung.includes(normalizedQuery) ||
-            normalizedFullNameChosung.includes(normalizedQuery)
-          : normalizedName.includes(normalizedQuery) || normalizedFullName.includes(normalizedQuery))
+          ? normalizedNameChosung.includes(normalizedQuery)
+          : normalizedName.includes(normalizedQuery))
       )
     })
     .sort((firstLocation, secondLocation) => {
@@ -556,6 +557,48 @@ export const useWeatherStore = defineStore('weather', () => {
 
   const favoriteCount = computed(() => {
     return favoriteWeatherList.value.length
+  })
+
+  const findSavedLocation = (location) => {
+    if (!location) {
+      return null
+    }
+
+    return (
+      addedLocations.value.find((savedLocation) => {
+        const hasSameLegalCode =
+          location.legalCode &&
+          savedLocation.legalCode &&
+          location.legalCode === savedLocation.legalCode
+
+        if (hasSameLegalCode) {
+          return true
+        }
+
+        const locationLatitude = Number(location.coord?.lat)
+        const locationLongitude = Number(location.coord?.lon)
+        const savedLatitude = Number(savedLocation.coord?.lat)
+        const savedLongitude = Number(savedLocation.coord?.lon)
+
+        if (
+          !Number.isFinite(locationLatitude) ||
+          !Number.isFinite(locationLongitude) ||
+          !Number.isFinite(savedLatitude) ||
+          !Number.isFinite(savedLongitude)
+        ) {
+          return false
+        }
+
+        return (
+          locationLatitude.toFixed(4) === savedLatitude.toFixed(4) &&
+          locationLongitude.toFixed(4) === savedLongitude.toFixed(4)
+        )
+      }) || null
+    )
+  }
+
+  const isCurrentLocationSaved = computed(() => {
+    return Boolean(findSavedLocation(currentLocation.value))
   })
 
   const formattedLastUpdatedAt = computed(() => {
@@ -1137,6 +1180,45 @@ export const useWeatherStore = defineStore('weather', () => {
     })
   }
 
+  /**
+   * 지도처럼 저장 목록과 별도로 조회한 날씨를 상세 화면에서 사용할 수 있도록
+   * 현재 Pinia 세션에만 등록합니다. 저장 지역 목록에는 영향을 주지 않습니다.
+   */
+  const rememberWeatherForDetail = (weather) => {
+    if (!weather?.id) {
+      return null
+    }
+
+    const detailWeather = {
+      ...weather,
+      favorite: favoriteIds.value.includes(weather.id),
+    }
+    const weatherIndex = weatherList.value.findIndex((city) => city.id === detailWeather.id)
+
+    if (weatherIndex >= 0) {
+      weatherList.value.splice(weatherIndex, 1, detailWeather)
+    } else {
+      weatherList.value.push(detailWeather)
+    }
+
+    return detailWeather
+  }
+
+  /**
+   * 전국 지도 상세 URL을 직접 열거나 새로고침했을 때 좌표로 현재 날씨를 복원합니다.
+   */
+  const fetchWeatherForDetail = async (location) => {
+    const existingWeather = weatherList.value.find((city) => city.id === location?.id)
+
+    if (existingWeather) {
+      return existingWeather
+    }
+
+    const weather = await fetchWeatherByLocation(location)
+
+    return rememberWeatherForDetail(weather)
+  }
+
   const replaceCurrentLocationWeather = (weather) => {
     weatherList.value = [
       weather,
@@ -1699,6 +1781,79 @@ export const useWeatherStore = defineStore('weather', () => {
     }
   }
 
+  /**
+   * 현재 위치 카드는 계속 현재 좌표를 따라가므로 직접 저장 목록으로 옮기지 않습니다.
+   * 대신 현재 확인된 지역을 일반 저장 지역으로 복사해 이후 위치가 바뀌어도 유지합니다.
+   */
+  const saveCurrentLocation = () => {
+    const currentWeather = weatherList.value.find((city) => city.isCurrentLocation)
+
+    if (!currentWeather?.coord) {
+      return {
+        success: false,
+        message: '저장할 현재 위치 정보를 찾지 못했습니다.',
+      }
+    }
+
+    const savedLocation = findSavedLocation(currentWeather)
+
+    if (savedLocation) {
+      return {
+        success: false,
+        locationId: savedLocation.id,
+        message: `${withTopicParticle(currentWeather.name)} 이미 저장한 지역입니다.`,
+      }
+    }
+
+    const storageCoordinate = currentWeather.searchCoord || currentWeather.coord
+    const savedLocationId = createLocationId(
+      currentWeather.countryCode,
+      storageCoordinate.lat,
+      storageCoordinate.lon,
+    )
+    const weatherRegion = getWeatherRegion(currentWeather)
+    const locationForStorage = {
+      id: savedLocationId,
+      name: currentWeather.name,
+      apiName: currentWeather.apiName || currentWeather.name,
+      state: currentWeather.state || '',
+      administrativeArea:
+        currentWeather.administrativeArea ||
+        createAdministrativeArea(currentWeather.state, currentWeather.countryCode),
+      countryCode: currentWeather.countryCode || '',
+      legalCode: currentWeather.legalCode || '',
+      administrativeLevel: currentWeather.administrativeLevel || '',
+      administrativeLevelLabel: currentWeather.administrativeLevelLabel || '',
+      administrativeRank: currentWeather.administrativeRank ?? 99,
+      regionCode: weatherRegion.code,
+      region: weatherRegion.label,
+      coord: {
+        lat: storageCoordinate.lat,
+        lon: storageCoordinate.lon,
+      },
+      addedByUser: true,
+    }
+
+    addedLocations.value.push(locationForStorage)
+    persistAddedLocations()
+
+    weatherList.value.push({
+      ...currentWeather,
+      ...locationForStorage,
+      coord: { ...currentWeather.coord },
+      searchCoord: { ...storageCoordinate },
+      favorite: favoriteIds.value.includes(savedLocationId),
+      isCurrentLocation: false,
+      isFallbackLocation: false,
+    })
+
+    return {
+      success: true,
+      locationId: savedLocationId,
+      message: `${withObjectParticle(currentWeather.name)} 저장한 지역에 추가했습니다.`,
+    }
+  }
+
   // ==================================
   // 도시 삭제
   // ==================================
@@ -1816,6 +1971,7 @@ export const useWeatherStore = defineStore('weather', () => {
 
     favoriteWeatherList,
     favoriteCount,
+    isCurrentLocationSaved,
 
     fetchAllWeather,
     refreshWeather,
@@ -1824,6 +1980,7 @@ export const useWeatherStore = defineStore('weather', () => {
 
     searchLocation,
     addLocation,
+    saveCurrentLocation,
     removeLocation,
 
     toggleFavorite,
@@ -1831,5 +1988,7 @@ export const useWeatherStore = defineStore('weather', () => {
 
     clearSearchResults,
     getWeatherById,
+    rememberWeatherForDetail,
+    fetchWeatherForDetail,
   }
 })

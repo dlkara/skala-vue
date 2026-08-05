@@ -55,21 +55,21 @@ const stackGroups = [
   },
   {
     title: '상태와 라우팅',
-    tags: ['Pinia', 'Vue Router', 'Local Storage'],
+    tags: ['Pinia', 'Vue Router', 'Local · Session Storage'],
     description:
-      '현재 위치·저장 지역·즐겨찾기·단위 설정을 중앙 상태로 관리하고, 동적 상세 경로와 새로고침 후 상태 복원을 구현했습니다.',
+      '현재 위치·저장 지역·즐겨찾기·단위 설정을 중앙 상태로 관리하고, 지도 선택 날씨의 임시 등록과 동적 상세 URL 복원을 구현했습니다.',
   },
   {
     title: 'UI와 시각화',
     tags: ['Element Plus', 'Leaflet', 'SVG', 'CSS Grid'],
     description:
-      '입력·선택·알림·로딩·확인 모달을 하나의 디자인 언어로 맞추고, 지도와 시간별 날씨 그래프는 목적에 맞게 직접 조합했습니다.',
+      '입력·알림·모달뿐 아니라 Card·Statistic·Descriptions로 지도 요약 정보를 구성하고, Leaflet 지도와 SVG 그래프를 목적에 맞게 조합했습니다.',
   },
   {
     title: '데이터 통신과 품질',
-    tags: ['Axios', 'Promise.allSettled', 'ESLint', 'Oxlint'],
+    tags: ['Axios', 'Promise.allSettled', '429 Cooldown', 'ESLint · Oxlint'],
     description:
-      'API 요청·타임아웃·부분 실패를 분리하고, 사용자 오류 문장과 정적 검사로 안정성과 코드 품질을 함께 관리했습니다.',
+      'API별 캐시·타임아웃·부분 실패와 재요청 대기를 분리하고, 사용자 오류 문장과 정적 검사로 안정성과 코드 품질을 함께 관리했습니다.',
   },
 ]
 
@@ -82,17 +82,17 @@ const apiRows = [
   {
     name: 'Open-Meteo Forecast',
     role: '예보',
-    usage: '오늘의 최저·최고 기온, 24시간 기온·습도·강수량, 일출·일몰 시각을 구성합니다.',
+    usage: '오늘의 최저·최고 기온, 24시간 기온·습도·강수량, 일출·일몰 시각을 구성하고 30분간 독립 캐시합니다.',
   },
   {
     name: 'Open-Meteo Air Quality',
     role: '대기질',
-    usage: 'PM10과 PM2.5를 조회하고 에어코리아 기준의 좋음·보통·나쁨·매우 나쁨 등급으로 변환합니다.',
+    usage: 'PM10과 PM2.5를 조회·독립 캐시하고 에어코리아 기준의 좋음·보통·나쁨·매우 나쁨 등급으로 변환합니다.',
   },
   {
     name: 'kr-legal-dong',
     role: '국내 행정구역',
-    usage: '시·도, 시·군·구, 읍·면·동 목록으로 이름·부분 일치·초성 검색 후보를 만듭니다.',
+    usage: '시·도, 시·군·구, 읍·면·동의 마지막 지역 단위를 추출해 이름·부분 일치·초성 검색 후보를 만듭니다.',
   },
   {
     name: 'Nominatim / OpenStreetMap',
@@ -102,7 +102,8 @@ const apiRows = [
   {
     name: 'Leaflet + OSM Tiles',
     role: '전국 지도',
-    usage: '주요 도시 마커, 선택 지역 패널, 확대·축소가 가능한 전국 날씨 지도를 렌더링합니다.',
+    usage:
+      '독도를 포함한 14개 주요 지역 마커와 확대·축소 지도를 렌더링하고, 선택 날씨를 상세 페이지 이동과 연결합니다.',
   },
 ]
 
@@ -117,7 +118,7 @@ const flowSteps = [
     number: '02',
     title: '로컬 결과와 새 지역 분리',
     description:
-      '현재 위치·저장 지역은 즉시 필터링하고, 새 지역은 법정동 데이터에서 부분 문자열·초성을 비교해 최대 5개를 찾습니다.',
+      '현재 위치·저장 지역은 즉시 필터링하고, 새 지역은 상위 경로를 제외한 마지막 법정 행정구역 단위에서 부분 문자열·초성을 비교해 최대 5개를 찾습니다.',
   },
   {
     number: '03',
@@ -132,13 +133,14 @@ const flowSteps = [
   {
     number: '05',
     title: '상세 데이터 결합',
-    description: '상세 화면에서 Open-Meteo 예보·대기질을 좌표 기준으로 병렬 요청해 보완합니다.',
+    description:
+      '상세 화면에서 Open-Meteo 예보·대기질을 좌표 기준으로 독립 요청하고, 한쪽 실패가 다른 데이터에 영향을 주지 않도록 결합합니다.',
   },
   {
     number: '06',
-    title: '상태 저장과 렌더링',
+    title: '상태 저장과 상세 경로 복원',
     description:
-      'Pinia 상태를 카드·목록·상세 화면이 공유하고 Local Storage와 Session Storage가 필요한 결과를 재사용합니다.',
+      'Pinia 상태를 카드·목록·상세 화면이 공유합니다. 지도 날씨는 즉시 임시 등록하고, 도시 ID와 좌표 Query를 함께 전달해 상세 URL을 새로고침해도 복원합니다.',
   },
 ]
 
@@ -151,7 +153,8 @@ const responsibilityRows = [
   {
     path: 'components/exercise/',
     title: '재사용 UI',
-    description: '날씨 카드, 검색창, 전국 지도, 시간별 그래프와 단위 전환처럼 독립적인 UI를 담당합니다.',
+    description:
+      '날씨 카드, 검색창, Element Plus 선택 패널을 포함한 전국 지도, 시간별 그래프와 단위 전환 UI를 담당합니다.',
   },
   {
     path: 'stores/',
@@ -167,12 +170,13 @@ const responsibilityRows = [
     path: 'utils/ · data/ · assets/',
     title: '기준 데이터와 공통 표현',
     description:
-      '초성 변환, 권역 분류, 한국어 조사, 전국 도시 좌표와 Element Plus를 포함한 공통 UI 스타일을 보관합니다.',
+      '마지막 행정구역 단위·초성 변환, 권역 분류, 한국어 조사, 독도 포함 14개 지역 좌표와 공통 UI 스타일을 보관합니다.',
   },
   {
     path: 'router/',
     title: '화면 이동',
-    description: '정적 페이지와 /weather/:cityId 동적 상세 경로, 404 처리를 정의합니다.',
+    description:
+      '정적 페이지와 /weather/:cityId 동적 상세 경로, 지도 좌표 Query 복원, 404 처리를 연결합니다.',
   },
 ]
 
@@ -183,7 +187,7 @@ const featureItems = [
     description:
       '일반 지오코딩 결과를 그대로 노출하지 않고 법정동 목록과 결합했습니다. 건물·학교·도로는 제외하고 읍·면·동 이상의 행정구역만 최대 5개 보여 줍니다.',
     detail:
-      '부분 일치·초성 검색과 상위 행정구역 우선 정렬을 지원하고, 한글 조합 중에도 두 번째 글자부터 검색 버튼 상태가 정확히 갱신됩니다.',
+      '후보 이름에서 마지막 행정구역 단위만 추출해 부분 일치·초성 검색하고 상위 행정구역부터 정렬합니다. 한글 조합 중에도 두 번째 글자부터 검색 버튼 상태가 정확히 갱신됩니다.',
   },
   {
     index: '02',
@@ -191,7 +195,7 @@ const featureItems = [
     description:
       'Geolocation 권한이 허용되면 좌표를 역지오코딩해 실제 동네 이름을 표시합니다. 거부·미지원 환경에서는 서울 날씨를 명확한 안내와 함께 제공합니다.',
     detail:
-      '현재 위치는 삭제할 수 없지만 즐겨찾기는 가능하며, 위치 재확인 버튼과 실제 카드 높이에 맞춘 로딩 카드로 레이아웃 이동을 줄였습니다.',
+      '현재 위치는 고정 카드로 유지하면서 상세 보기·저장·즐겨찾기를 각각 제공합니다. 저장 시 현재 확인된 지역을 일반 저장 지역으로 복사하므로 이후 위치가 바뀌어도 별도로 관리할 수 있습니다.',
   },
   {
     index: '03',
@@ -215,21 +219,21 @@ const featureItems = [
     description:
       '선택한 동네 이름과 상위 행정구역을 함께 표시하고, 현재·체감·최저·최고 기온과 PM10·PM2.5 값 및 등급을 좌표 기준으로 결합합니다.',
     detail:
-      '24시간 기온·습도·강수량은 SVG 그래프로 표현하며 주·야간 아이콘, 일출·일몰의 해·달 마커와 시각을 같은 시간축에 표시합니다.',
+      '24시간 추이는 SVG 그래프로 표현합니다. Forecast·대기질은 각각 30분 캐시하고, 429 시 재요청을 멈추며 최대 6시간 이내의 이전 성공 데이터를 안내와 함께 사용합니다.',
   },
   {
     index: '06',
-    title: '지연 로딩 전국 날씨 지도',
+    title: '상세 화면과 연결되는 전국 날씨 지도',
     description:
-      'IntersectionObserver로 지도가 화면 근처에 왔을 때만 13개 주요 도시의 날씨를 요청합니다. 일부 요청이 실패해도 성공한 도시는 계속 표시합니다.',
+      'IntersectionObserver로 지도가 화면 근처에 왔을 때만 독도를 포함한 14개 주요 지역의 날씨를 요청합니다. 일부 요청이 실패해도 성공한 지역은 계속 표시합니다.',
     detail:
-      'Leaflet 마커와 선택 도시 요약을 직접 구성하고, Promise.allSettled와 10분 Session Storage 캐시로 실패 격리와 중복 호출 감소를 함께 처리했습니다.',
+      '선택 결과는 Element Plus Card·Statistic·Descriptions로 구성합니다. 상세 이동 시 기존 날씨를 Pinia에 재사용하고 도시 ID·이름·상위 지역·좌표를 URL에 전달해 새로고침도 지원하며, Leaflet과 버튼의 포인터 이벤트는 분리했습니다.',
   },
   {
     index: '07',
     title: 'Element Plus 기반의 일관된 피드백',
     description:
-      '입력창·버튼·선택 상자·태그·알림·빈 상태·스켈레톤을 Element Plus로 통일하고 서비스의 회색·파란색 디자인 토큰에 맞게 조정했습니다.',
+      'Input·Button·Select·Tag·Alert·Skeleton·MessageBox뿐 아니라 Card·Statistic·Descriptions까지 적용하고 회색·파란색 디자인 토큰에 맞게 조정했습니다.',
     detail:
       '명시적인 버튼 문구와 aria-label, 키보드 제출, 페이지 이동 후 본문 초점 이동으로 마우스 외 입력 방식도 고려했습니다.',
   },
@@ -238,7 +242,8 @@ const featureItems = [
     title: '공개 API 정책과 캐시 고려',
     description:
       'Nominatim 요청은 큐에서 약 1.1초 간격으로 실행하고, 검색·역지오코딩 결과는 Local Storage에 저장해 같은 요청을 반복하지 않습니다.',
-    detail: '타임아웃과 API별 오류 메시지를 사용자 문장으로 변환해 실패 상태도 화면 안에서 설명합니다.',
+    detail:
+      '동일 좌표의 진행 중 요청을 합치고 Open-Meteo 429 응답에는 Retry-After 또는 기본 2분 대기를 적용해 실패가 추가 호출로 이어지지 않게 했습니다.',
   },
 ]
 
@@ -272,7 +277,7 @@ const selectSection = (sectionId) => {
       <div class="project-hero-copy">
         <p class="page-eyebrow">Project Documentation</p>
         <h1>
-          <span>Weather Now를</span>
+          <span>WeatherNow를</span>
           <span>어떻게 설계하고 구현했는지 소개합니다.</span>
         </h1>
         <p>
@@ -290,9 +295,9 @@ const selectSection = (sectionId) => {
       </div>
 
       <aside class="project-hero-note" aria-label="문서 활용 안내">
-        <span>PORTFOLIO NOTE</span>
-        <strong>문제 → 설계 → 구현 → 개선</strong>
-        <p>목차를 선택하면 필요한 내용만 바뀌어 긴 페이지를 계속 스크롤하지 않아도 됩니다.</p>
+        <span>FINAL IMPLEMENTATION</span>
+        <strong>과제 요구사항 + 확장 기능 완료</strong>
+        <p>목차별로 최종 구조와 구현 판단을 확인할 수 있으며 Lint·Build와 주요 사용자 흐름 검증을 마쳤습니다.</p>
       </aside>
     </header>
 
@@ -336,7 +341,7 @@ const selectSection = (sectionId) => {
                 </h3>
               </div>
               <p>
-                Weather Now는 단순 도시명 검색에서 출발해 법정동 검색, 현재 위치, 저장·즐겨찾기,
+                WeatherNow는 단순 도시명 검색에서 출발해 법정동 검색, 현재 위치, 저장·즐겨찾기,
                 전국 지도, 상세 예보와 대기질을 하나의 흐름으로 연결한 Vue 기반 날씨
                 대시보드입니다.
               </p>
@@ -371,7 +376,7 @@ const selectSection = (sectionId) => {
                 <li><span>3</span>대시보드에 저장</li>
                 <li><span>4</span>홈에서 즐겨찾기</li>
                 <li><span>5</span>정렬·삭제 관리</li>
-                <li><span>6</span>상세 추이 확인</li>
+                <li><span>6</span>카드·지도에서 상세 확인</li>
               </ol>
             </section>
           </template>
@@ -438,11 +443,11 @@ const selectSection = (sectionId) => {
                 </div>
                 <div>
                   <dt>Session Storage</dt>
-                  <dd>한 세션에서 재사용할 전국 주요 도시 날씨 10분 캐시</dd>
+                  <dd>전국 14개 지역 날씨 10분 캐시, Forecast·대기질 각각 30분 캐시와 429 대기 시각</dd>
                 </div>
                 <div>
-                  <dt>Route Param</dt>
-                  <dd>/weather/:cityId를 통해 새로고침 가능한 상세 페이지의 선택 지역 전달</dd>
+                  <dt>Route Param · Query</dt>
+                  <dd>도시 ID와 지도 좌표·지역명을 함께 전달해 상세 URL 직접 접근과 새로고침 복원</dd>
                 </div>
               </dl>
             </section>
@@ -471,7 +476,10 @@ const selectSection = (sectionId) => {
 │   ├── useTemperature.js
 │   └── useWeatherSupplement.js
 ├── utils/
-├── data/
+│   ├── getChosung.js
+│   ├── getRepresentativeLocationName.js
+│   └── getWeatherRegion.js
+├── data/koreaWeatherLocations.js
 ├── assets/common.css
 └── router/</code></pre>
 
@@ -532,6 +540,13 @@ const selectSection = (sectionId) => {
                 </li>
               </ol>
             </section>
+
+            <el-alert
+              title="최종 검증 완료: npm run lint와 npm run build를 통과했으며 검색·저장·상세·독도 지도와 지도 상세 이동 흐름을 브라우저에서 확인했습니다."
+              type="success"
+              :closable="false"
+              show-icon
+            />
 
             <el-alert
               title="현재 구조는 프런트엔드 과제용입니다. 실제 운영 서비스에서는 API 키 보호와 호출량 제어를 위해 서버 프록시를 두는 것이 안전합니다."

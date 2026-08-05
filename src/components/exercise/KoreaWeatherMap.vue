@@ -1,11 +1,13 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { useRouter } from 'vue-router'
+
 import axios from 'axios'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, View } from '@element-plus/icons-vue'
 
 import BaseDashboardCard from '@/components/exercise/BaseDashboardCard.vue'
 
@@ -13,19 +15,23 @@ import { KOREA_WEATHER_LOCATIONS } from '@/data/koreaWeatherLocations'
 
 import { useConfigStore } from '@/stores/configStore'
 
+import { useWeatherStore } from '@/stores/weatherStore'
+
 import { getWeatherIconUrl } from '@/utils/getWeatherIconUrl'
 
 const OPEN_WEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY
 const CURRENT_WEATHER_API_URL = 'https://api.openweathermap.org/data/2.5/weather'
-const NATIONAL_WEATHER_CACHE_KEY = 'weather-dashboard-national-map-v1'
+const NATIONAL_WEATHER_CACHE_KEY = 'weather-dashboard-national-map-v3'
 const NATIONAL_WEATHER_CACHE_TTL = 1000 * 60 * 10
 
 const configStore = useConfigStore()
+const weatherStore = useWeatherStore()
+const router = useRouter()
 
 const sectionElement = ref(null)
 const mapElement = ref(null)
 const nationalWeatherList = ref([])
-const selectedCityId = ref('seoul')
+const selectedCityId = ref('national-seoul')
 const isLoading = ref(false)
 const hasStarted = ref(false)
 const errorMessage = ref('')
@@ -46,7 +52,25 @@ const selectedWeather = computed(() => {
 })
 
 const nationalLocationCount = computed(() => {
-  return nationalWeatherList.value.length || KOREA_WEATHER_LOCATIONS.length
+  return KOREA_WEATHER_LOCATIONS.length
+})
+
+const selectedTemperatureValue = computed(() => {
+  const celsiusTemperature = Number(selectedWeather.value?.temperature)
+
+  if (!Number.isFinite(celsiusTemperature)) {
+    return 0
+  }
+
+  if (configStore.unit === 'fahrenheit') {
+    return Math.round((celsiusTemperature * 9) / 5 + 32)
+  }
+
+  return Math.round(celsiusTemperature)
+})
+
+const temperatureUnitSymbol = computed(() => {
+  return configStore.unit === 'fahrenheit' ? '℉' : '℃'
 })
 
 const formattedUpdatedAt = computed(() => {
@@ -125,14 +149,59 @@ const cacheWeather = (weatherList, cachedAt) => {
 }
 
 const normalizeNationalWeather = (location, apiData) => {
+  const currentCondition = apiData.weather?.[0] || {}
+
   return {
     ...location,
+    id: `national-${location.id}`,
+    mapLocationId: location.id,
+    apiName: location.name,
+    administrativeArea: `${location.state} · KR`,
+    countryCode: 'KR',
+    coord: {
+      lat: location.lat,
+      lon: location.lon,
+    },
+    searchCoord: {
+      lat: location.lat,
+      lon: location.lon,
+    },
+    main: {
+      temp: apiData.main?.temp,
+      feels_like: apiData.main?.feels_like,
+      temp_min: apiData.main?.temp_min,
+      temp_max: apiData.main?.temp_max,
+      pressure: apiData.main?.pressure,
+      humidity: apiData.main?.humidity,
+    },
+    weather: {
+      main: currentCondition.main || '',
+      description: currentCondition.description || '',
+      icon: currentCondition.icon || '',
+    },
+    wind: {
+      speed: apiData.wind?.speed ?? 0,
+      deg: apiData.wind?.deg ?? null,
+    },
+    clouds: {
+      all: apiData.clouds?.all ?? 0,
+    },
+    visibility: apiData.visibility ?? null,
+    sys: {
+      sunrise: apiData.sys?.sunrise ?? null,
+      sunset: apiData.sys?.sunset ?? null,
+    },
+    timezone: apiData.timezone ?? 0,
+    dt: apiData.dt ?? null,
+    favorite: false,
+    addedByUser: false,
+    isNationalMapLocation: true,
     temperature: apiData.main?.temp,
     feelsLike: apiData.main?.feels_like,
     humidity: apiData.main?.humidity,
     windSpeed: apiData.wind?.speed,
-    description: apiData.weather?.[0]?.description || '날씨 정보 없음',
-    icon: apiData.weather?.[0]?.icon || '',
+    description: currentCondition.description || '날씨 정보 없음',
+    icon: currentCondition.icon || '',
     observedAt: apiData.dt ?? null,
   }
 }
@@ -272,6 +341,7 @@ const initializeMap = () => {
     maxZoom: 10,
     zoomSnap: 0.25,
     zoomControl: false,
+    zoomAnimation: false,
     scrollWheelZoom: false,
     maxBounds: [
       [31.5, 122.5],
@@ -296,7 +366,7 @@ const initializeMap = () => {
   map.fitBounds(
     [
       [32.9, 124.5],
-      [39.1, 131.5],
+      [39.1, 132.2],
     ],
     {
       padding: [18, 18],
@@ -327,6 +397,26 @@ const focusCity = (city) => {
       duration: 0.65,
     })
   }
+}
+
+const openWeatherDetail = (city) => {
+  if (!city?.id) {
+    return
+  }
+
+  weatherStore.rememberWeatherForDetail(city)
+
+  router.push({
+    name: 'weather-detail',
+    params: { cityId: city.id },
+    query: {
+      source: 'national-map',
+      name: city.name,
+      state: city.state,
+      lat: String(city.lat),
+      lon: String(city.lon),
+    },
+  })
 }
 
 const refreshNationalWeather = async () => {
@@ -379,6 +469,7 @@ onBeforeUnmount(() => {
   intersectionObserver?.disconnect()
   window.removeEventListener('resize', handleWindowResize)
 
+  map?.stop()
   map?.remove()
   map = null
   markerLayer = null
@@ -392,7 +483,7 @@ onBeforeUnmount(() => {
         <h2 id="national-map-title">
           전국 날씨 지도
           <span class="national-weather-count" role="status">
-            (주요 {{ nationalLocationCount }}개 도시)
+            (주요 {{ nationalLocationCount }}개 지역)
           </span>
         </h2>
 
@@ -434,7 +525,7 @@ onBeforeUnmount(() => {
           ref="mapElement"
           class="national-map-canvas"
           role="application"
-          aria-label="대한민국 주요 도시 현재 날씨 지도"
+          aria-label="대한민국 주요 지역 현재 날씨 지도"
         ></div>
 
         <div v-if="!hasStarted || isLoading" class="national-map-loading" role="status">
@@ -447,42 +538,72 @@ onBeforeUnmount(() => {
           <p>{{ hasStarted ? '전국 날씨를 불러오고 있습니다.' : '지도를 준비하고 있습니다.' }}</p>
         </div>
 
-        <article v-if="selectedWeather" class="selected-weather-panel" aria-live="polite">
-          <div class="selected-weather-heading">
-            <div>
-              <span>선택 지역</span>
-              <h3>{{ selectedWeather.name }}</h3>
-            </div>
+        <article
+          v-if="selectedWeather"
+          class="selected-weather-panel"
+          aria-live="polite"
+          @click.stop
+          @dblclick.stop
+          @mousedown.stop
+          @pointerdown.stop
+          @touchstart.stop
+          @wheel.stop
+        >
+          <el-card class="selected-weather-card" shadow="always">
+            <template #header>
+              <div class="selected-weather-heading">
+                <div>
+                  <span>선택 지역</span>
+                  <h3>{{ selectedWeather.name }}</h3>
+                </div>
 
-            <img
-              v-if="selectedWeather.icon"
-              :src="getWeatherIconUrl(selectedWeather.icon, '2x')"
-              :alt="`${selectedWeather.description} 아이콘`"
-            />
-          </div>
+                <img
+                  v-if="selectedWeather.icon"
+                  :src="getWeatherIconUrl(selectedWeather.icon, '2x')"
+                  :alt="`${selectedWeather.description} 아이콘`"
+                />
+              </div>
+            </template>
 
-          <p class="selected-weather-temperature">
-            {{ formatTemperature(selectedWeather.temperature) }}
-          </p>
+            <el-statistic
+              class="selected-weather-temperature"
+              :value="selectedTemperatureValue"
+              :precision="0"
+            >
+              <template #suffix>{{ temperatureUnitSymbol }}</template>
+            </el-statistic>
 
-          <p class="selected-weather-description">{{ selectedWeather.description }}</p>
+            <p class="selected-weather-description">{{ selectedWeather.description }}</p>
 
-          <dl class="selected-weather-details">
-            <div>
-              <dt>체감</dt>
-              <dd>{{ formatTemperature(selectedWeather.feelsLike) }}</dd>
-            </div>
+            <el-descriptions
+              class="selected-weather-details"
+              :column="3"
+              direction="vertical"
+              size="small"
+            >
+              <el-descriptions-item label="체감">
+                {{ formatTemperature(selectedWeather.feelsLike) }}
+              </el-descriptions-item>
 
-            <div>
-              <dt>습도</dt>
-              <dd>{{ selectedWeather.humidity ?? '-' }}%</dd>
-            </div>
+              <el-descriptions-item label="습도">
+                {{ selectedWeather.humidity ?? '-' }}%
+              </el-descriptions-item>
 
-            <div>
-              <dt>풍속</dt>
-              <dd>{{ selectedWeather.windSpeed ?? '-' }}m/s</dd>
-            </div>
-          </dl>
+              <el-descriptions-item label="풍속">
+                {{ selectedWeather.windSpeed ?? '-' }}m/s
+              </el-descriptions-item>
+            </el-descriptions>
+
+            <el-button
+              class="selected-weather-detail-button"
+              type="primary"
+              native-type="button"
+              :icon="View"
+              @click.stop="openWeatherDetail(selectedWeather)"
+            >
+              상세 보기
+            </el-button>
+          </el-card>
         </article>
       </div>
 
@@ -612,12 +733,25 @@ onBeforeUnmount(() => {
   top: 20px;
   left: 20px;
   width: 220px;
-  padding: 18px;
+}
+
+.selected-weather-card {
+  --el-card-padding: 18px;
+
   border: 1px solid rgb(255 255 255 / 85%);
   border-radius: 16px;
   background: rgb(255 255 255 / 91%);
   box-shadow: 0 16px 36px rgb(15 23 42 / 16%);
   backdrop-filter: blur(10px);
+}
+
+.selected-weather-card :deep(.el-card__header) {
+  padding: 14px 18px 8px;
+  border-bottom: 0;
+}
+
+.selected-weather-card :deep(.el-card__body) {
+  padding: 0 18px 18px;
 }
 
 .selected-weather-heading {
@@ -646,7 +780,10 @@ onBeforeUnmount(() => {
 }
 
 .selected-weather-temperature {
-  margin: 14px 0 0;
+  margin-top: 6px;
+}
+
+.selected-weather-temperature :deep(.el-statistic__content) {
   color: #172033;
   font-size: 34px;
   font-weight: 900;
@@ -661,35 +798,36 @@ onBeforeUnmount(() => {
 }
 
 .selected-weather-details {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
   margin: 16px 0 0;
 }
 
-.selected-weather-details div {
-  min-width: 0;
-  padding-top: 8px;
-  border-top: 1px solid #dbeafe;
+.selected-weather-details :deep(.el-descriptions__body) {
+  background: transparent;
 }
 
-.selected-weather-details dt,
-.selected-weather-details dd {
-  margin: 0;
+.selected-weather-details :deep(.el-descriptions__cell) {
+  padding: 8px 2px 0;
+  border-top: 1px solid #dbeafe;
   text-align: center;
 }
 
-.selected-weather-details dt {
+.selected-weather-details :deep(.el-descriptions__label) {
   color: #94a3b8;
   font-size: 10px;
 }
 
-.selected-weather-details dd {
+.selected-weather-details :deep(.el-descriptions__content) {
   margin-top: 3px;
   color: #334155;
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.selected-weather-detail-button {
+  width: 100%;
+  margin-top: 14px;
+  font-weight: 800;
 }
 
 .city-weather-strip {
