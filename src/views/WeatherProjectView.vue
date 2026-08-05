@@ -553,6 +553,7 @@ const selectSection = (sectionId) => {
               type="warning"
               :closable="false"
               show-icon
+              style="margin-top: 10px"
             />
 
             <section class="improvement-section" aria-labelledby="improvement-title">
