@@ -29,7 +29,9 @@ const actionMessage = ref('')
 
 const savedWeatherList = computed(() => {
   return weatherList.value.filter((city) => {
-    return !city.isCurrentLocation && city.countryCode?.trim().toUpperCase() === 'KR'
+    const isKoreanLocation = city.countryCode?.trim().toUpperCase() === 'KR'
+
+    return city.isCurrentLocation ? city.favorite : isKoreanLocation
   })
 })
 

@@ -46,14 +46,12 @@ const currentLocationCity = computed(() => {
   return weatherList.value.find((city) => city.isCurrentLocation) || null
 })
 
-const savedWeatherList = computed(() => {
-  return weatherList.value.filter((city) => {
-    return !city.isCurrentLocation && city.countryCode?.trim().toUpperCase() === 'KR'
-  })
-})
-
 const favoriteSavedWeatherList = computed(() => {
-  return savedWeatherList.value.filter((city) => city.favorite)
+  return weatherList.value.filter((city) => {
+    const isKoreanLocation = city.countryCode?.trim().toUpperCase() === 'KR'
+
+    return city.favorite && (city.isCurrentLocation || isKoreanLocation)
+  })
 })
 
 const visibleFavoriteWeatherList = computed(() => {
